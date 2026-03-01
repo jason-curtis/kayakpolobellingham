@@ -7,8 +7,8 @@ interface Game {
   id: string;
   date: string;
   time: string;
-  signupDeadline: string;
-  status: 'open' | 'closed' | 'cancelled';
+  signup_deadline: string;
+  status: string;
 }
 
 interface Regular {
@@ -17,25 +17,39 @@ interface Regular {
   aliases: string[];
 }
 
+type Tab = 'games' | 'regulars';
+type Action = 'list' | 'create' | 'edit';
+
 export default function AdminPortal() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'games' | 'regulars'>('games');
-  const [games, setGames] = useState<Game[]>([]);
-  const [regulars, setRegulars] = useState<Regular[]>([]);
+  const [tab, setTab] = useState<Tab>('games');
+  const [action, setAction] = useState<Action>('list');
 
-  // Game form state
+  // Games state
+  const [games, setGames] = useState<Game[]>([]);
+  const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [newGame, setNewGame] = useState({
     date: '',
     time: '09:00',
     signupDeadline: '',
   });
 
+  // Regulars state
+  const [regulars, setRegulars] = useState<Regular[]>([]);
+  const [editingRegular, setEditingRegular] = useState<Regular | null>(null);
+  const [newRegular, setNewRegular] = useState({
+    name: '',
+    aliases: '',
+  });
+
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError(''); // Clear previous errors
+    setError('');
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
@@ -46,7 +60,6 @@ export default function AdminPortal() {
       if (res.ok) {
         setIsLoggedIn(true);
         setPassword('');
-        setError(''); // Clear error on success
         fetchData();
       } else {
         setError('Invalid password');
@@ -58,21 +71,22 @@ export default function AdminPortal() {
 
   const fetchData = async () => {
     try {
-      const gamesRes = await fetch('/api/games');
-      if (gamesRes.ok) {
-        setGames(await gamesRes.json());
-      }
-      const regularsRes = await fetch('/api/regulars');
-      if (regularsRes.ok) {
-        setRegulars(await regularsRes.json());
-      }
+      const [gamesRes, regularsRes] = await Promise.all([
+        fetch('/api/admin/games'),
+        fetch('/api/admin/regulars'),
+      ]);
+
+      if (gamesRes.ok) setGames(await gamesRes.json());
+      if (regularsRes.ok) setRegulars(await regularsRes.json());
     } catch (err) {
       console.error('Failed to fetch data:', err);
     }
   };
 
+  // Games CRUD
   const handleCreateGame = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsSubmitting(true);
     try {
       const res = await fetch('/api/admin/games', {
         method: 'POST',
@@ -83,12 +97,129 @@ export default function AdminPortal() {
       if (res.ok) {
         setNewGame({ date: '', time: '09:00', signupDeadline: '' });
         setError('');
+        setAction('list');
         fetchData();
       } else {
         setError('Failed to create game');
       }
     } catch (err) {
       setError('Error creating game');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateGame = async (e: React.FormEvent) => {
+    if (!editingGame) return;
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/games/${editingGame.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(editingGame),
+      });
+
+      if (res.ok) {
+        setEditingGame(null);
+        setError('');
+        setAction('list');
+        fetchData();
+      } else {
+        setError('Failed to update game');
+      }
+    } catch (err) {
+      setError('Error updating game');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteGame = async (id: string) => {
+    if (!confirm('Delete this game?')) return;
+    try {
+      const res = await fetch(`/api/admin/games/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchData();
+      } else {
+        setError('Failed to delete game');
+      }
+    } catch (err) {
+      setError('Error deleting game');
+    }
+  };
+
+  // Regulars CRUD
+  const handleCreateRegular = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const aliases = newRegular.aliases
+        .split(',')
+        .map(a => a.trim())
+        .filter(a => a);
+
+      const res = await fetch('/api/admin/regulars', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: newRegular.name, aliases }),
+      });
+
+      if (res.ok) {
+        setNewRegular({ name: '', aliases: '' });
+        setError('');
+        setAction('list');
+        fetchData();
+      } else {
+        setError('Failed to create regular');
+      }
+    } catch (err) {
+      setError('Error creating regular');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleUpdateRegular = async (e: React.FormEvent) => {
+    if (!editingRegular) return;
+    e.preventDefault();
+    setIsSubmitting(true);
+    try {
+      const res = await fetch(`/api/admin/regulars/${editingRegular.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: editingRegular.name,
+          aliases: editingRegular.aliases,
+        }),
+      });
+
+      if (res.ok) {
+        setEditingRegular(null);
+        setError('');
+        setAction('list');
+        fetchData();
+      } else {
+        setError('Failed to update regular');
+      }
+    } catch (err) {
+      setError('Error updating regular');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleDeleteRegular = async (id: string) => {
+    if (!confirm('Delete this regular?')) return;
+    try {
+      const res = await fetch(`/api/admin/regulars/${id}`, { method: 'DELETE' });
+      if (res.ok) {
+        fetchData();
+      } else {
+        setError('Failed to delete regular');
+      }
+    } catch (err) {
+      setError('Error deleting regular');
     }
   };
 
@@ -123,10 +254,6 @@ export default function AdminPortal() {
               Login
             </button>
           </form>
-
-          <p className="text-xs text-gray-500 text-center mt-6">
-            Demo: Use password "marine park tides swirl"
-          </p>
         </div>
       </div>
     );
@@ -155,24 +282,30 @@ export default function AdminPortal() {
         {/* Tabs */}
         <div className="flex gap-2 mb-6">
           <button
-            onClick={() => setTab('games')}
+            onClick={() => {
+              setTab('games');
+              setAction('list');
+            }}
             className={`px-4 py-2 rounded font-semibold transition ${
               tab === 'games'
                 ? 'bg-white text-blue-600'
                 : 'bg-white/30 text-white hover:bg-white/40'
             }`}
           >
-            📅 Manage Games
+            📅 Games
           </button>
           <button
-            onClick={() => setTab('regulars')}
+            onClick={() => {
+              setTab('regulars');
+              setAction('list');
+            }}
             className={`px-4 py-2 rounded font-semibold transition ${
               tab === 'regulars'
                 ? 'bg-white text-blue-600'
                 : 'bg-white/30 text-white hover:bg-white/40'
             }`}
           >
-            👥 Manage Regulars
+            👥 Regulars
           </button>
         </div>
 
@@ -182,116 +315,358 @@ export default function AdminPortal() {
 
         {/* Games Tab */}
         {tab === 'games' && (
-          <div className="space-y-6">
-            {/* Create Game Form */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                ➕ Create New Game
-              </h2>
-              <form onSubmit={handleCreateGame} className="space-y-4">
-                <div className="grid md:grid-cols-3 gap-4">
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Game Date
-                    </label>
-                    <input
-                      type="date"
-                      value={newGame.date}
-                      onChange={(e) => setNewGame({ ...newGame, date: e.target.value })}
-                      className="w-full p-2 border rounded text-gray-900"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Game Time
-                    </label>
-                    <input
-                      type="time"
-                      value={newGame.time}
-                      onChange={(e) => setNewGame({ ...newGame, time: e.target.value })}
-                      className="w-full p-2 border rounded text-gray-900"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      Signup Deadline
-                    </label>
-                    <input
-                      type="datetime-local"
-                      value={newGame.signupDeadline}
-                      onChange={(e) => setNewGame({ ...newGame, signupDeadline: e.target.value })}
-                      className="w-full p-2 border rounded text-gray-900"
-                      required
-                    />
-                  </div>
+          <div>
+            {action === 'list' && (
+              <>
+                <div className="flex gap-2 mb-6">
+                  <button
+                    onClick={() => {
+                      setAction('create');
+                      setNewGame({ date: '', time: '09:00', signupDeadline: '' });
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    ➕ New Game
+                  </button>
                 </div>
-                <button
-                  type="submit"
-                  className="w-full p-3 bg-green-600 text-white rounded font-semibold hover:bg-green-700"
-                >
-                  Create Game
-                </button>
-              </form>
-            </div>
 
-            {/* Games List */}
-            <div className="bg-white rounded-lg shadow-lg p-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">
-                📋 Scheduled Games
-              </h2>
-              {games.length === 0 ? (
-                <p className="text-gray-600">No games scheduled yet.</p>
-              ) : (
-                <div className="space-y-3">
-                  {games.map((game) => (
-                    <div key={game.id} className="border rounded p-4 bg-gray-50">
-                      <div className="flex justify-between items-start">
-                        <div>
-                          <div className="font-bold text-gray-900">
-                            {game.date} • {game.time}
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    📋 Games
+                  </h2>
+                  {games.length === 0 ? (
+                    <p className="text-gray-600">No games yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {games.map((game) => (
+                        <div key={game.id} className="border rounded p-4 bg-gray-50 flex justify-between items-start">
+                          <div>
+                            <div className="font-bold text-gray-900">
+                              {game.date} • {game.time}
+                            </div>
+                            <div className="text-sm text-gray-600 mt-1">
+                              Deadline: {new Date(game.signup_deadline).toLocaleString()}
+                            </div>
                           </div>
-                          <div className="text-sm text-gray-600 mt-1">
-                            Signups close: {new Date(game.signupDeadline).toLocaleString()}
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingGame(game);
+                                setAction('edit');
+                              }}
+                              className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteGame(game.id)}
+                              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                            >
+                              Delete
+                            </button>
                           </div>
                         </div>
-                        <span className={`px-3 py-1 rounded text-sm font-semibold ${
-                          game.status === 'open'
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-gray-100 text-gray-700'
-                        }`}>
-                          {game.status}
-                        </span>
-                      </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
+
+            {action === 'create' && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">➕ Create Game</h2>
+                <form onSubmit={handleCreateGame} className="space-y-4">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        value={newGame.date}
+                        onChange={(e) => setNewGame({ ...newGame, date: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Time
+                      </label>
+                      <input
+                        type="time"
+                        value={newGame.time}
+                        onChange={(e) => setNewGame({ ...newGame, time: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Signup Deadline
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={newGame.signupDeadline}
+                        onChange={(e) => setNewGame({ ...newGame, signupDeadline: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 p-3 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      {isSubmitting ? 'Creating...' : 'Create Game'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAction('list')}
+                      className="flex-1 p-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {action === 'edit' && editingGame && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Game</h2>
+                <form onSubmit={handleUpdateGame} className="space-y-4">
+                  <div className="grid md:grid-cols-3 gap-4">
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Date
+                      </label>
+                      <input
+                        type="date"
+                        value={editingGame.date}
+                        onChange={(e) => setEditingGame({ ...editingGame, date: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Time
+                      </label>
+                      <input
+                        type="time"
+                        value={editingGame.time}
+                        onChange={(e) => setEditingGame({ ...editingGame, time: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-semibold text-gray-700 mb-2">
+                        Signup Deadline
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={editingGame.signup_deadline}
+                        onChange={(e) => setEditingGame({ ...editingGame, signup_deadline: e.target.value })}
+                        className="w-full p-2 border rounded text-gray-900"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 p-3 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Game'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingGame(null);
+                        setAction('list');
+                      }}
+                      className="flex-1 p-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
           </div>
         )}
 
         {/* Regulars Tab */}
         {tab === 'regulars' && (
-          <div className="bg-white rounded-lg shadow-lg p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">
-              👥 Player Aliases
-            </h2>
-            {regulars.length === 0 ? (
-              <p className="text-gray-600">No regulars configured yet.</p>
-            ) : (
-              <div className="space-y-3">
-                {regulars.map((regular) => (
-                  <div key={regular.id} className="border rounded p-4 bg-gray-50">
-                    <div className="font-bold text-gray-900">{regular.name}</div>
-                    {regular.aliases.length > 0 && (
-                      <div className="text-sm text-gray-600 mt-1">
-                        Aliases: {regular.aliases.join(', ')}
-                      </div>
-                    )}
+          <div>
+            {action === 'list' && (
+              <>
+                <div className="flex gap-2 mb-6">
+                  <button
+                    onClick={() => {
+                      setAction('create');
+                      setNewRegular({ name: '', aliases: '' });
+                    }}
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700"
+                  >
+                    ➕ New Regular
+                  </button>
+                </div>
+
+                <div className="bg-white rounded-lg shadow-lg p-6">
+                  <h2 className="text-xl font-bold text-gray-900 mb-4">
+                    👥 Regulars
+                  </h2>
+                  {regulars.length === 0 ? (
+                    <p className="text-gray-600">No regulars yet.</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {regulars.map((regular) => (
+                        <div key={regular.id} className="border rounded p-4 bg-gray-50 flex justify-between items-start">
+                          <div>
+                            <div className="font-bold text-gray-900">
+                              {regular.name}
+                            </div>
+                            {regular.aliases.length > 0 && (
+                              <div className="text-sm text-gray-600 mt-1">
+                                Aliases: {regular.aliases.join(', ')}
+                              </div>
+                            )}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => {
+                                setEditingRegular(regular);
+                                setAction('edit');
+                              }}
+                              className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDeleteRegular(regular.id)}
+                              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+
+            {action === 'create' && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">➕ Create Regular</h2>
+                <form onSubmit={handleCreateRegular} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={newRegular.name}
+                      onChange={(e) => setNewRegular({ ...newRegular, name: e.target.value })}
+                      className="w-full p-2 border rounded text-gray-900"
+                      required
+                    />
                   </div>
-                ))}
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Aliases (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., g, gazza"
+                      value={newRegular.aliases}
+                      onChange={(e) => setNewRegular({ ...newRegular, aliases: e.target.value })}
+                      className="w-full p-2 border rounded text-gray-900"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 p-3 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
+                    >
+                      {isSubmitting ? 'Creating...' : 'Create Regular'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setAction('list')}
+                      className="flex-1 p-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              </div>
+            )}
+
+            {action === 'edit' && editingRegular && (
+              <div className="bg-white rounded-lg shadow-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Edit Regular</h2>
+                <form onSubmit={handleUpdateRegular} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Name
+                    </label>
+                    <input
+                      type="text"
+                      value={editingRegular.name}
+                      onChange={(e) => setEditingRegular({ ...editingRegular, name: e.target.value })}
+                      className="w-full p-2 border rounded text-gray-900"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-2">
+                      Aliases (comma-separated)
+                    </label>
+                    <input
+                      type="text"
+                      value={editingRegular.aliases.join(', ')}
+                      onChange={(e) =>
+                        setEditingRegular({
+                          ...editingRegular,
+                          aliases: e.target.value
+                            .split(',')
+                            .map(a => a.trim())
+                            .filter(a => a),
+                        })
+                      }
+                      className="w-full p-2 border rounded text-gray-900"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={isSubmitting}
+                      className="flex-1 p-3 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+                    >
+                      {isSubmitting ? 'Saving...' : 'Save Regular'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEditingRegular(null);
+                        setAction('list');
+                      }}
+                      className="flex-1 p-3 bg-gray-600 text-white rounded font-semibold hover:bg-gray-700"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
               </div>
             )}
           </div>
