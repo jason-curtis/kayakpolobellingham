@@ -9,8 +9,20 @@ async function getDB() {
 // Games
 export async function getGames(): Promise<any[]> {
   const db = await getDB();
-  const { results } = await db.prepare('SELECT * FROM games ORDER BY date ASC').all();
+  const { results } = await db.prepare('SELECT * FROM games ORDER BY date DESC').all();
   return results;
+}
+
+export async function getUpcomingAndRecentGames(): Promise<{ upcoming: any | null; recent: any | null }> {
+  const db = await getDB();
+  const today = new Date().toISOString().split('T')[0];
+  const upcoming = await db.prepare(
+    'SELECT * FROM games WHERE date >= ? ORDER BY date ASC LIMIT 1'
+  ).bind(today).first();
+  const recent = await db.prepare(
+    'SELECT * FROM games WHERE date < ? ORDER BY date DESC LIMIT 1'
+  ).bind(today).first();
+  return { upcoming, recent };
 }
 
 export async function getGame(id: string) {

@@ -137,13 +137,16 @@ async function scrapeTopicListPage(page: number): Promise<TopicInfo[]> {
   return topics;
 }
 
-async function scrapeAllTopics(): Promise<TopicInfo[]> {
+async function scrapeAllTopics(existingIds: Set<string>, incremental: boolean): Promise<TopicInfo[]> {
   // First page to get total count
   const firstPageHtml = await fetchPage(`${BASE_URL}/topics?page=1`);
   const countMatch = firstPageHtml.match(/\d+\s*-\s*\d+\s*of\s*(\d+)/);
   const totalTopics = countMatch ? parseInt(countMatch[1], 10) : 3859;
   const totalPages = Math.ceil(totalTopics / TOPICS_PER_PAGE);
   console.log(`Total topics: ${totalTopics}, pages: ${totalPages}`);
+  if (incremental) {
+    console.log(`  Incremental mode: will stop when all topics on a page are known`);
+  }
 
   // Parse first page
   const allTopics: TopicInfo[] = [];
@@ -159,6 +162,12 @@ async function scrapeAllTopics(): Promise<TopicInfo[]> {
   }
   console.log(`  Page 1: found ${allTopics.length} topics`);
 
+  // In incremental mode, stop if all topics on this page are already known
+  if (incremental && allTopics.length > 0 && allTopics.every(t => existingIds.has(t.topicId))) {
+    console.log(`  All topics on page 1 already known, stopping (incremental mode)`);
+    return allTopics;
+  }
+
   // Remaining pages
   for (let page = 2; page <= totalPages; page++) {
     await sleep(RATE_LIMIT_MS);
@@ -166,8 +175,12 @@ async function scrapeAllTopics(): Promise<TopicInfo[]> {
     console.log(`  Page ${page}: found ${topics.length} topics`);
     allTopics.push(...topics);
     if (topics.length === 0) {
-      // Might have hit the end
       console.log(`  Empty page ${page}, stopping topic list scrape`);
+      break;
+    }
+    // In incremental mode, stop when we hit a page where everything is known
+    if (incremental && topics.every(t => existingIds.has(t.topicId))) {
+      console.log(`  All topics on page ${page} already known, stopping (incremental mode)`);
       break;
     }
   }
@@ -300,9 +313,10 @@ async function main() {
     }
   }
 
-  // Step 1: Scrape all topic list pages
+  // Step 1: Scrape topic list pages (incremental if we have existing data)
+  const incremental = existingIds.size > 0;
   console.log("\n--- Step 1: Scraping topic list ---\n");
-  const allTopics = await scrapeAllTopics();
+  const allTopics = await scrapeAllTopics(existingIds, incremental);
   console.log(`\nTotal topics found: ${allTopics.length}`);
 
   // Step 2: Filter to game-related topics

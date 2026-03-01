@@ -28,27 +28,10 @@ interface Summary {
   minAttendance: number;
 }
 
-interface HistoricalGame {
-  date: string;
-  inCount: number;
-  outCount: number;
-}
-
-interface HistoricalPlayer {
-  name: string;
-  gamesIn: number;
-  gamesOut: number;
-  attendanceRate: number;
-}
-
 interface StatsData {
   games: GameStat[];
   players: PlayerStat[];
   summary: Summary;
-  historical?: {
-    games: HistoricalGame[];
-    players: HistoricalPlayer[];
-  };
 }
 
 const TIMEZONE = 'America/Los_Angeles';
@@ -185,10 +168,8 @@ export default function StatsPage() {
   if (error) return <div className="p-8 text-center text-red-300">{error}</div>;
   if (!stats) return null;
 
-  const { games, players, summary, historical } = stats;
+  const { games, players, summary } = stats;
   const flakiest = [...players].sort((a, b) => b.statusChanges - a.statusChanges)[0];
-  const histGames = historical?.games || [];
-  const histPlayers = historical?.players || [];
 
   return (
     <div className="min-h-screen p-4 md:p-8">
@@ -292,62 +273,6 @@ export default function StatsPage() {
               </div>
             </div>
           </div>
-        )}
-
-        {/* Historical Data */}
-        {histGames.length > 0 && (
-          <>
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Historical Attendance (from email archives)</h2>
-              <p className="text-sm text-gray-500 mb-4">
-                Parsed from {histGames.length} games in the groups.io email list
-              </p>
-              <BarChart games={histGames.map((g, i) => ({
-                id: `hist-${i}`,
-                date: g.date,
-                time: '09:00',
-                inCount: g.inCount,
-                outCount: g.outCount,
-              }))} />
-            </div>
-
-            <div className="bg-white rounded-lg shadow-lg p-6 mb-6">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">All-Time Player Stats</h2>
-              <p className="text-sm text-gray-500 mb-4">Based on {histGames.length} historical games</p>
-              <div className="overflow-x-auto">
-                <table className="w-full text-left">
-                  <thead>
-                    <tr className="border-b text-sm text-gray-500">
-                      <th className="pb-2 pr-4">#</th>
-                      <th className="pb-2 pr-4">Player</th>
-                      <th className="pb-2 pr-4 text-right">Games In</th>
-                      <th className="pb-2 pr-4 text-right">Games Out</th>
-                      <th className="pb-2 text-right">Rate</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {histPlayers.map((player, i) => (
-                      <tr key={player.name} className="border-b last:border-0">
-                        <td className="py-2 pr-4 text-gray-400 text-sm">{i + 1}</td>
-                        <td className="py-2 pr-4 font-medium text-gray-900">{player.name}</td>
-                        <td className="py-2 pr-4 text-right text-gray-700">{player.gamesIn}</td>
-                        <td className="py-2 pr-4 text-right text-gray-500">{player.gamesOut}</td>
-                        <td className="py-2 text-right">
-                          <span className={`font-semibold ${
-                            player.attendanceRate >= 50 ? 'text-green-600' :
-                            player.attendanceRate >= 25 ? 'text-blue-600' :
-                            'text-gray-400'
-                          }`}>
-                            {player.attendanceRate}%
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          </>
         )}
 
         {/* Back link */}

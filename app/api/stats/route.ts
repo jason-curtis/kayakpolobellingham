@@ -23,21 +23,15 @@ export async function GET() {
        ORDER BY g.date ASC`
     ).all();
 
-    // Per-game signup counts (only "in" status)
+    // Per-game signup counts
     const gamesWithCounts = games.map((game: any) => {
       const gameSignups = signups.filter((s: any) => s.game_id === game.id);
       const inCount = gameSignups.filter((s: any) => s.status === 'in').length;
       const outCount = gameSignups.filter((s: any) => s.status === 'out').length;
-      return {
-        id: game.id,
-        date: game.date,
-        time: game.time,
-        inCount,
-        outCount,
-      };
+      return { id: game.id, date: game.date, time: game.time, inCount, outCount };
     });
 
-    // Per-player attendance stats
+    // Per-player stats
     const playerMap: Record<string, { gamesIn: number; gamesOut: number; lateSignups: number; statusChanges: number }> = {};
 
     for (const s of signups as any[]) {
@@ -48,7 +42,6 @@ export async function GET() {
       if (s.status === 'in') p.gamesIn++;
       if (s.status === 'out') p.gamesOut++;
       if (s.late) p.lateSignups++;
-      // Detect status changes: if created_at !== updated_at, player changed their signup
       if (s.created_at !== s.updated_at) p.statusChanges++;
     }
 
@@ -62,62 +55,14 @@ export async function GET() {
       statusChanges: stats.statusChanges,
       attendanceRate: totalGames > 0 ? Math.round((stats.gamesIn / totalGames) * 100) : 0,
     }));
-
-    // Sort by attendance rate descending
     players.sort((a, b) => b.attendanceRate - a.attendanceRate);
 
-    // Summary stats
     const totalSignupsIn = signups.filter((s: any) => s.status === 'in').length;
     const avgAttendance = totalGames > 0 ? Math.round((totalSignupsIn / totalGames) * 10) / 10 : 0;
     const maxAttendance = Math.max(...gamesWithCounts.map((g: any) => g.inCount), 0);
     const minAttendance = gamesWithCounts.length > 0
       ? Math.min(...gamesWithCounts.map((g: any) => g.inCount))
       : 0;
-
-    // Historical attendance from email scraping
-    let historicalGames: any[] = [];
-    let historicalPlayers: any[] = [];
-    try {
-      const { results: history } = await db.prepare(
-        'SELECT game_date, player_name, status FROM attendance_history ORDER BY game_date ASC'
-      ).all();
-
-      if (history && history.length > 0) {
-        // Group by game_date
-        const histGameMap: Record<string, { inCount: number; outCount: number }> = {};
-        const histPlayerMap: Record<string, { gamesIn: number; gamesOut: number }> = {};
-
-        for (const h of history as any[]) {
-          if (!histGameMap[h.game_date]) {
-            histGameMap[h.game_date] = { inCount: 0, outCount: 0 };
-          }
-          if (h.status === 'in') histGameMap[h.game_date].inCount++;
-          if (h.status === 'out') histGameMap[h.game_date].outCount++;
-
-          if (!histPlayerMap[h.player_name]) {
-            histPlayerMap[h.player_name] = { gamesIn: 0, gamesOut: 0 };
-          }
-          if (h.status === 'in') histPlayerMap[h.player_name].gamesIn++;
-          if (h.status === 'out') histPlayerMap[h.player_name].gamesOut++;
-        }
-
-        historicalGames = Object.entries(histGameMap)
-          .map(([date, counts]) => ({ date, ...counts }))
-          .sort((a, b) => a.date.localeCompare(b.date));
-
-        const histTotalGames = historicalGames.length;
-        historicalPlayers = Object.entries(histPlayerMap)
-          .map(([name, stats]) => ({
-            name,
-            gamesIn: stats.gamesIn,
-            gamesOut: stats.gamesOut,
-            attendanceRate: histTotalGames > 0 ? Math.round((stats.gamesIn / histTotalGames) * 100) : 0,
-          }))
-          .sort((a, b) => b.gamesIn - a.gamesIn);
-      }
-    } catch {
-      // attendance_history table might not exist yet
-    }
 
     return NextResponse.json({
       games: gamesWithCounts,
@@ -128,10 +73,6 @@ export async function GET() {
         avgAttendance,
         maxAttendance,
         minAttendance,
-      },
-      historical: {
-        games: historicalGames,
-        players: historicalPlayers,
       },
     });
   } catch (error) {

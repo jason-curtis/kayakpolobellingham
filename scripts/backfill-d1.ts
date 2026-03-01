@@ -29,36 +29,21 @@ function main() {
 
   const lines: string[] = [];
 
-  lines.push("-- Backfill historical games and attendance from email scraping");
+  lines.push("-- Backfill historical games and signups from email scraping");
   lines.push("-- Generated at " + new Date().toISOString());
   lines.push("");
 
-  // Create attendance_history table if not exists
-  lines.push(`CREATE TABLE IF NOT EXISTS attendance_history (
-  id TEXT PRIMARY KEY,
-  game_date TEXT NOT NULL,
-  player_name TEXT NOT NULL,
-  status TEXT NOT NULL,
-  source TEXT DEFAULT 'email',
-  created_at TEXT NOT NULL
-);`);
-  lines.push("");
-  lines.push("CREATE INDEX IF NOT EXISTS idx_ah_date ON attendance_history(game_date);");
-  lines.push("CREATE INDEX IF NOT EXISTS idx_ah_player ON attendance_history(player_name);");
-  lines.push("");
-
   // Clear existing historical data (idempotent)
-  lines.push("DELETE FROM attendance_history WHERE source = 'email';");
-  lines.push("DELETE FROM games WHERE status = 'completed' AND id LIKE 'hist-%';");
+  lines.push("DELETE FROM signups WHERE game_id LIKE 'hist-%';");
+  lines.push("DELETE FROM games WHERE id LIKE 'hist-%';");
   lines.push("");
 
-  let totalRecords = 0;
+  let totalSignups = 0;
   let totalGames = 0;
+  const now = new Date().toISOString();
 
   for (const game of games) {
-    // Insert historical game into games table
     const gameId = `hist-${escapeSql(game.date)}-${escapeSql(game.time)}`;
-    const now = new Date().toISOString();
     const deadline = `${game.date}T${game.time}:00`;
     const status = "completed";
     lines.push(
@@ -66,24 +51,22 @@ function main() {
     );
     totalGames++;
 
-    if (game.players.length === 0) continue;
-
     for (const player of game.players) {
       const id = randomUUID();
       lines.push(
-        `INSERT INTO attendance_history (id, game_date, player_name, status, source, created_at) VALUES ('${id}', '${escapeSql(game.date)}', '${escapeSql(player.name)}', '${player.status}', 'email', '${now}');`
+        `INSERT OR IGNORE INTO signups (id, game_id, player_name, status, late, created_at, updated_at) VALUES ('${id}', '${gameId}', '${escapeSql(player.name)}', '${player.status}', 0, '${now}', '${now}');`
       );
-      totalRecords++;
+      totalSignups++;
     }
   }
 
   lines.push("");
-  lines.push(`-- Total: ${totalGames} games, ${totalRecords} attendance records`);
+  lines.push(`-- Total: ${totalGames} games, ${totalSignups} signups`);
 
   writeFileSync(SQL_FILE, lines.join("\n"));
   console.log(`Generated ${SQL_FILE}`);
-  console.log(`Total attendance records: ${totalRecords}`);
-  console.log(`Games with signups: ${games.filter(g => g.players.length > 0).length}`);
+  console.log(`Total games: ${totalGames}`);
+  console.log(`Total signups: ${totalSignups}`);
 }
 
 main();

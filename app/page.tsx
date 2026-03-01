@@ -68,7 +68,7 @@ export default function Home() {
 
   const fetchGames = async () => {
     try {
-      const res = await fetch('/api/games');
+      const res = await fetch('/api/games?view=home');
       if (!res.ok) throw new Error('Failed to fetch games');
       const data = await res.json();
       setGames(data);
@@ -344,6 +344,9 @@ export default function Home() {
 
         {/* Footer Links */}
         <div className="text-center mt-8 space-x-4">
+          <a href="/history" className="text-white hover:text-blue-200 underline text-sm">
+            Game History
+          </a>
           <a href="/stats" className="text-white hover:text-blue-200 underline text-sm">
             Stats
           </a>
