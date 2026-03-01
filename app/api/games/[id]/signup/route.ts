@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { addSignup } from '@/lib/d1';
 
 export async function POST(
   request: NextRequest,
@@ -15,11 +16,17 @@ export async function POST(
       );
     }
 
-    // TODO: Save to D1 database
-    console.log(`Signup: ${playerName} is ${status} for game ${params.id}`);
+    const result = await addSignup(params.id, playerName, status);
+    if (!result.success) {
+      return NextResponse.json(
+        { error: result.errors?.[0] || 'Signup failed' },
+        { status: 400 }
+      );
+    }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ success: true, data: result.results?.[0] });
   } catch (error) {
+    console.error('Signup error:', error);
     return NextResponse.json(
       { error: 'Signup failed' },
       { status: 500 }

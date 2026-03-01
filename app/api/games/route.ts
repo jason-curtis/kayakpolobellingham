@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getGames, getSignupsForGame, getRegulars } from '@/lib/db';
+import { getGames, getSignupsForGame, getRegulars } from '@/lib/d1';
 
 export async function GET() {
   try {

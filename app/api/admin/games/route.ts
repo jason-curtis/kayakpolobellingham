@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createGame } from '@/lib/db';
+import { createGame } from '@/lib/d1';
 
 export async function POST(request: NextRequest) {
   try {
@@ -12,15 +12,11 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const game = await createGame({
-      date,
-      time,
-      signupDeadline,
-      status: 'open',
-    });
+    const game = await createGame(date, time, signupDeadline);
 
     return NextResponse.json(game, { status: 201 });
   } catch (error) {
+    console.error('Game creation error:', error);
     return NextResponse.json(
       { error: 'Failed to create game' },
       { status: 500 }
