@@ -20,7 +20,7 @@ export async function getUpcomingAndRecentGames(): Promise<{ upcoming: any | nul
     "SELECT * FROM games WHERE date >= ? AND status != 'completed' ORDER BY date ASC LIMIT 1"
   ).bind(today).first();
   const recent = await db.prepare(
-    'SELECT * FROM games WHERE date < ? ORDER BY date DESC LIMIT 1'
+    'SELECT * FROM games WHERE date <= ? ORDER BY date DESC LIMIT 1'
   ).bind(today).first();
   return { upcoming, recent };
 }
