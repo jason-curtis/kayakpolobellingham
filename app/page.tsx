@@ -90,6 +90,18 @@ export default function Home() {
     return `${signupCount}/6 needed`;
   };
 
+  const formatTime = (time: string) => {
+    // Handle HH:MM format
+    if (time.includes(':')) {
+      const [hours, minutes] = time.split(':');
+      const hour = parseInt(hours);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const displayHour = hour % 12 || 12;
+      return `${displayHour}:${minutes} ${ampm}`;
+    }
+    return time;
+  };
+
   return (
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
@@ -124,7 +136,7 @@ export default function Home() {
                   }`}
                 >
                   <div className="font-bold text-gray-900">{game.date}</div>
-                  <div className="text-sm text-gray-600">{game.time}</div>
+                  <div className="text-sm text-gray-600">{formatTime(game.time)}</div>
                   <div className="text-xs text-blue-600 mt-1">{getGameStatus(game)}</div>
                 </button>
               ))}
@@ -136,7 +148,7 @@ export default function Home() {
                 {/* Game Info */}
                 <div className="bg-white rounded-lg shadow-lg p-6">
                   <h2 className="text-2xl font-bold text-gray-900 mb-4">
-                    {selectedGame.date} • {selectedGame.time}
+                    {selectedGame.date} • {formatTime(selectedGame.time)}
                   </h2>
 
                   {new Date() > new Date(selectedGame.signupDeadline) ? (

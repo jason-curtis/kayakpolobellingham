@@ -10,9 +10,11 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "bcryptjs": "^3.0.3",
     "next": "^15.0.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "uuid": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^20",

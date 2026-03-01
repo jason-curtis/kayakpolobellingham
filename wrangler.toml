@@ -1,5 +1,4 @@
 name = "kayakpolobellingham"
-main = "app/api/**/*.ts"
 compatibility_date = "2024-01-01"
 
 # D1 Database Binding
@@ -7,27 +6,3 @@ compatibility_date = "2024-01-01"
 binding = "DB"
 database_name = "kayakpolo"
 database_id = "changeme"
-
-# Durable Objects (for game scheduling)
-[[durable_objects.bindings]]
-name = "SCHEDULER"
-class_name = "GameScheduler"
-
-[env.development]
-routes = [
-  { pattern = "localhost:8787/*", zone_name = "example.com" }
-]
-
-[env.production]
-routes = [
-  { pattern = "kayakpolobellingham.workers.dev/*", zone_name = "" }
-]
-route = "kayakpolobellingham.workers.dev/*"
-
-[build]
-command = "npm run build"
-cwd = "."
-
-[build.upload]
-format = "service-worker"
-main = "app/api/index.ts"

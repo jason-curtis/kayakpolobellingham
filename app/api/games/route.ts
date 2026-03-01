@@ -1,33 +1,30 @@
 import { NextResponse } from 'next/server';
-
-// In-memory storage for MVP (will be replaced with D1)
-const games = [
-  {
-    id: 'game-001',
-    date: '2026-03-02',
-    time: '9:00 AM',
-    signupDeadline: '2026-03-01T18:00:00Z',
-    status: 'open',
-    signups: {
-      in: ['Cameron', 'Gib'],
-      out: [],
-    },
-    regulars: ['Cameron', 'Gib', 'Gary', 'Dorothy', 'Jason', 'Mike'],
-  },
-  {
-    id: 'game-002',
-    date: '2026-03-09',
-    time: '9:00 AM',
-    signupDeadline: '2026-03-08T18:00:00Z',
-    status: 'open',
-    signups: {
-      in: ['Cameron', 'Gary', 'Dorothy'],
-      out: ['Gib'],
-    },
-    regulars: ['Cameron', 'Gib', 'Gary', 'Dorothy', 'Jason', 'Mike'],
-  },
-];
+import { getGames, getSignupsForGame, getRegulars } from '@/lib/db';
 
 export async function GET() {
-  return NextResponse.json(games);
+  try {
+    const games = await getGames();
+    const regulars = await getRegulars();
+    const regularNames = regulars.map(r => r.name);
+
+    // Enrich games with signup data
+    const enrichedGames = await Promise.all(
+      games.map(async (game) => {
+        const signups = await getSignupsForGame(game.id);
+        return {
+          ...game,
+          signups,
+          regulars: regularNames,
+        };
+      })
+    );
+
+    return NextResponse.json(enrichedGames);
+  } catch (error) {
+    console.error('Failed to fetch games:', error);
+    return NextResponse.json(
+      { error: 'Failed to fetch games' },
+      { status: 500 }
+    );
+  }
 }
