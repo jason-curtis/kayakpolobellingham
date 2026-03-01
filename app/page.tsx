@@ -342,8 +342,11 @@ export default function Home() {
           </div>
         )}
 
-        {/* Admin Link */}
-        <div className="text-center mt-8">
+        {/* Footer Links */}
+        <div className="text-center mt-8 space-x-4">
+          <a href="/stats" className="text-white hover:text-blue-200 underline text-sm">
+            Stats
+          </a>
           <a href="/admin" className="text-white hover:text-blue-200 underline text-sm">
             Admin Portal
           </a>
