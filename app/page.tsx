@@ -163,7 +163,7 @@ export default function Home() {
     }
 
     // Game is past
-    return 'Game Complete';
+    return signupCount >= 6 ? 'GAME ON ✅' : 'NO GAME ❌';
   };
 
   const signedNames = (game: Game) => {
@@ -276,25 +276,33 @@ export default function Home() {
                   )}
                 </div>
 
-                {/* Regulars & Signup */}
+                {/* Signups */}
                 <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="font-bold text-gray-900 mb-4">👥 The Regulars</h3>
+                  <h3 className="font-bold text-gray-900 mb-4">Signups</h3>
                   <div className="space-y-2 mb-6">
-                    {selectedGame.regulars.map((regular) => {
-                      const inEntry = selectedGame.signups.in.find(s => s.name === regular);
-                      const outEntry = selectedGame.signups.out.find(s => s.name === regular);
-                      return (
+                    {selectedGame.signups.in.map((s) => (
+                      <div key={s.name} className="flex items-center gap-3">
+                        <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
+                        <span className="text-gray-900 flex-1">{s.name}</span>
+                        {s.late && <span className="text-xs text-orange-500">(late)</span>}
+                      </div>
+                    ))}
+                    {selectedGame.signups.out.map((s) => (
+                      <div key={s.name} className="flex items-center gap-3">
+                        <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
+                        <span className="text-gray-900 flex-1">{s.name}</span>
+                        {s.late && <span className="text-xs text-orange-500">(late)</span>}
+                      </div>
+                    ))}
+                    {selectedGame.regulars
+                      .filter(r => !signedNames(selectedGame).has(r))
+                      .map((regular) => (
                         <div key={regular} className="flex items-center gap-3">
-                          <span className={`inline-block w-3 h-3 rounded-full ${
-                            inEntry ? 'bg-green-500' : outEntry ? 'bg-red-500' : 'bg-gray-300'
-                          }`} />
-                          <span className="text-gray-900 flex-1">{regular}</span>
-                          {inEntry?.late && <span className="text-xs text-orange-500">(late)</span>}
-                          {outEntry?.late && <span className="text-xs text-orange-500">(late)</span>}
-                          {!inEntry && !outEntry && <span className="text-xs text-gray-500">(waiting)</span>}
+                          <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
+                          <span className="text-gray-500 flex-1">{regular}</span>
+                          <span className="text-xs text-gray-400">(waiting)</span>
                         </div>
-                      );
-                    })}
+                      ))}
                   </div>
 
                   {/* Your Signup */}
