@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   if (authError) return authError;
 
   try {
-    const { records } = (await request.json()) as any;
+    const { records, clear } = (await request.json()) as any;
 
     if (!Array.isArray(records) || records.length === 0) {
       return NextResponse.json({ error: 'No records provided' }, { status: 400 });
@@ -20,9 +20,13 @@ export async function POST(request: NextRequest) {
 
     const db = await getDB();
 
-    // Recreate table with correct schema
-    await db.prepare('DROP TABLE IF EXISTS attendance_history').run();
-    await db.prepare(`CREATE TABLE attendance_history (
+    // If clear flag, drop and recreate
+    if (clear) {
+      await db.prepare('DROP TABLE IF EXISTS attendance_history').run();
+    }
+
+    // Create table if not exists (with correct schema)
+    await db.prepare(`CREATE TABLE IF NOT EXISTS attendance_history (
       id TEXT PRIMARY KEY,
       game_date TEXT NOT NULL,
       player_name TEXT NOT NULL,

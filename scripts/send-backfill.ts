@@ -73,11 +73,14 @@ async function main() {
   // Send in chunks (API has size limits)
   const chunkSize = 200;
   let totalInserted = 0;
+  const totalChunks = Math.ceil(records.length / chunkSize);
 
   for (let i = 0; i < records.length; i += chunkSize) {
     const chunk = records.slice(i, i + chunkSize);
+    const chunkNum = Math.floor(i / chunkSize) + 1;
+    const isFirst = chunkNum === 1;
     console.log(
-      `Sending chunk ${Math.floor(i / chunkSize) + 1}/${Math.ceil(records.length / chunkSize)} (${chunk.length} records)...`
+      `Sending chunk ${chunkNum}/${totalChunks} (${chunk.length} records)${isFirst ? " [clear existing]" : ""}...`
     );
 
     const res = await fetch(`${BASE_URL}/api/admin/backfill`, {
@@ -86,7 +89,7 @@ async function main() {
         "Content-Type": "application/json",
         Cookie: cookie,
       },
-      body: JSON.stringify({ records: chunk }),
+      body: JSON.stringify({ records: chunk, clear: isFirst }),
     });
 
     if (!res.ok) {
