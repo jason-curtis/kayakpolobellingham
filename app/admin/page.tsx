@@ -35,6 +35,7 @@ export default function AdminPortal() {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    setError(''); // Clear previous errors
     try {
       const res = await fetch('/api/admin/login', {
         method: 'POST',
@@ -45,6 +46,7 @@ export default function AdminPortal() {
       if (res.ok) {
         setIsLoggedIn(true);
         setPassword('');
+        setError(''); // Clear error on success
         fetchData();
       } else {
         setError('Invalid password');
@@ -142,6 +144,7 @@ export default function AdminPortal() {
             onClick={() => {
               setIsLoggedIn(false);
               setPassword('');
+              setError('');
             }}
             className="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
           >
