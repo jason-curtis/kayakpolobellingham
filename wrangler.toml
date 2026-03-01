@@ -1,4 +1,5 @@
 name = "kayakpolosignups"
+account_id = "7b24a491f5dc20008fd759bb3a5b0636"
 main = ".open-next/worker.js"
 compatibility_date = "2024-12-30"
 compatibility_flags = ["nodejs_compat"]
