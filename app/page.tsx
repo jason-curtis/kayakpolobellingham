@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react';
+import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/countdown';
 
 interface Game {
   id: string;
@@ -15,6 +16,11 @@ interface Game {
   regulars: string[];
 }
 
+interface CountdownState {
+  gameStart: Record<string, string>;
+  signupDeadline: Record<string, string>;
+}
+
 const TIMEZONE = 'America/Los_Angeles';
 
 export default function Home() {
@@ -24,6 +30,7 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [countdowns, setCountdowns] = useState<CountdownState>({ gameStart: {}, signupDeadline: {} });
 
   // Load player name from localStorage
   useEffect(() => {
@@ -31,6 +38,28 @@ export default function Home() {
     if (stored) setPlayerName(stored);
     fetchGames();
   }, []);
+
+  // Update countdowns every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const newCountdowns: CountdownState = { gameStart: {}, signupDeadline: {} };
+
+      games.forEach((game) => {
+        // Calculate game start time
+        const gameStartTime = new Date(`${game.date}T${game.time}`);
+        const gameStartRemaining = getTimeRemaining(gameStartTime);
+        newCountdowns.gameStart[game.id] = formatCountdown(gameStartRemaining);
+
+        // Calculate signup deadline
+        const deadlineRemaining = getTimeRemaining(game.signupDeadline);
+        newCountdowns.signupDeadline[game.id] = formatCountdownLong(deadlineRemaining);
+      });
+
+      setCountdowns(newCountdowns);
+    }, 1000);
+
+    return () => clearInterval(interval);
+  }, [games]);
 
   const fetchGames = async () => {
     try {
@@ -210,13 +239,21 @@ export default function Home() {
                       : 'bg-blue-100 text-blue-800'
                   }`}>
                     {getGameStatus(selectedGame)}
+                    <div className="text-sm font-normal mt-2">
+                      ⏱️ Game starts in: {countdowns.gameStart[selectedGame.id] || 'calculating...'}
+                    </div>
                   </div>
 
                   {/* Deadline Info */}
                   {isSignupOpen(selectedGame) ? (
-                    <p className="text-sm text-gray-600">
-                      ✅ <strong>Signups open</strong> until {formatDeadlineDate(selectedGame.signupDeadline)} 6PM
-                    </p>
+                    <div>
+                      <p className="text-sm text-gray-600 mb-2">
+                        ✅ <strong>Signups open</strong> until {formatDeadlineDate(selectedGame.signupDeadline)} 6PM
+                      </p>
+                      <p className="text-xs text-blue-600 font-semibold">
+                        ⏱️ Closes in: {countdowns.signupDeadline[selectedGame.id] || 'loading...'}
+                      </p>
+                    </div>
                   ) : (
                     <p className="text-sm text-red-600">
                       ❌ <strong>Signups closed</strong> (deadline was {formatDeadlineDate(selectedGame.signupDeadline)} 6PM)
