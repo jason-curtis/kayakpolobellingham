@@ -49,16 +49,27 @@ function main() {
 
   // Clear existing historical data (idempotent)
   lines.push("DELETE FROM attendance_history WHERE source = 'email';");
+  lines.push("DELETE FROM games WHERE status = 'completed' AND id LIKE 'hist-%';");
   lines.push("");
 
   let totalRecords = 0;
+  let totalGames = 0;
 
   for (const game of games) {
+    // Insert historical game into games table
+    const gameId = `hist-${escapeSql(game.date)}-${escapeSql(game.time)}`;
+    const now = new Date().toISOString();
+    const deadline = `${game.date}T${game.time}:00`;
+    const status = "completed";
+    lines.push(
+      `INSERT OR IGNORE INTO games (id, date, time, signup_deadline, status, created_at, updated_at) VALUES ('${gameId}', '${escapeSql(game.date)}', '${escapeSql(game.time)}', '${deadline}', '${status}', '${now}', '${now}');`
+    );
+    totalGames++;
+
     if (game.players.length === 0) continue;
 
     for (const player of game.players) {
       const id = randomUUID();
-      const now = new Date().toISOString();
       lines.push(
         `INSERT INTO attendance_history (id, game_date, player_name, status, source, created_at) VALUES ('${id}', '${escapeSql(game.date)}', '${escapeSql(player.name)}', '${player.status}', 'email', '${now}');`
       );
@@ -67,7 +78,7 @@ function main() {
   }
 
   lines.push("");
-  lines.push(`-- Total: ${totalRecords} attendance records across ${games.length} games`);
+  lines.push(`-- Total: ${totalGames} games, ${totalRecords} attendance records`);
 
   writeFileSync(SQL_FILE, lines.join("\n"));
   console.log(`Generated ${SQL_FILE}`);
