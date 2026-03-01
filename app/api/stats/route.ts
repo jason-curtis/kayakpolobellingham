@@ -74,6 +74,51 @@ export async function GET() {
       ? Math.min(...gamesWithCounts.map((g: any) => g.inCount))
       : 0;
 
+    // Historical attendance from email scraping
+    let historicalGames: any[] = [];
+    let historicalPlayers: any[] = [];
+    try {
+      const { results: history } = await db.prepare(
+        'SELECT game_date, player_name, status FROM attendance_history ORDER BY game_date ASC'
+      ).all();
+
+      if (history && history.length > 0) {
+        // Group by game_date
+        const histGameMap: Record<string, { inCount: number; outCount: number }> = {};
+        const histPlayerMap: Record<string, { gamesIn: number; gamesOut: number }> = {};
+
+        for (const h of history as any[]) {
+          if (!histGameMap[h.game_date]) {
+            histGameMap[h.game_date] = { inCount: 0, outCount: 0 };
+          }
+          if (h.status === 'in') histGameMap[h.game_date].inCount++;
+          if (h.status === 'out') histGameMap[h.game_date].outCount++;
+
+          if (!histPlayerMap[h.player_name]) {
+            histPlayerMap[h.player_name] = { gamesIn: 0, gamesOut: 0 };
+          }
+          if (h.status === 'in') histPlayerMap[h.player_name].gamesIn++;
+          if (h.status === 'out') histPlayerMap[h.player_name].gamesOut++;
+        }
+
+        historicalGames = Object.entries(histGameMap)
+          .map(([date, counts]) => ({ date, ...counts }))
+          .sort((a, b) => a.date.localeCompare(b.date));
+
+        const histTotalGames = historicalGames.length;
+        historicalPlayers = Object.entries(histPlayerMap)
+          .map(([name, stats]) => ({
+            name,
+            gamesIn: stats.gamesIn,
+            gamesOut: stats.gamesOut,
+            attendanceRate: histTotalGames > 0 ? Math.round((stats.gamesIn / histTotalGames) * 100) : 0,
+          }))
+          .sort((a, b) => b.gamesIn - a.gamesIn);
+      }
+    } catch {
+      // attendance_history table might not exist yet
+    }
+
     return NextResponse.json({
       games: gamesWithCounts,
       players,
@@ -83,6 +128,10 @@ export async function GET() {
         avgAttendance,
         maxAttendance,
         minAttendance,
+      },
+      historical: {
+        games: historicalGames,
+        players: historicalPlayers,
       },
     });
   } catch (error) {
