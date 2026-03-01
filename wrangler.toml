@@ -1,8 +1,15 @@
 name = "kayakpolobellingham"
 compatibility_date = "2024-01-01"
+account_id = "7b24a491f5dc20008fd759bb3a5b0636"
+type = "javascript"
 
 # D1 Database Binding
 [[d1_databases]]
 binding = "DB"
 database_name = "kayakpolo"
 database_id = "b2a2e2bf-5b93-4c52-b2b3-94b15587addd"
+
+# Workers service binding (optional for future use)
+# [[services]]
+# binding = "AUTH_SERVICE"
+# service = "auth-service"
