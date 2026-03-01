@@ -15,7 +15,7 @@ export async function GET() {
 
 export async function POST(request: NextRequest) {
   try {
-    const { name, aliases } = await request.json();
+    const { name, aliases } = await request.json() as any;
 
     if (!name) {
       return NextResponse.json(

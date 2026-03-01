@@ -3,8 +3,7 @@ import { verifyPassword } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { password } = body;
+    const { password } = await request.json() as any;
 
     if (verifyPassword(password)) {
       const response = NextResponse.json({ success: true });

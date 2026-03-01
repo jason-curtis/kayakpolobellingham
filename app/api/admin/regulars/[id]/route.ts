@@ -24,7 +24,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const { name, aliases } = await request.json();
+    const { name, aliases } = await request.json() as any;
     const regular = await updateRegular(params.id, name, aliases);
     if (!regular) {
       return NextResponse.json({ error: 'Regular not found' }, { status: 404 });

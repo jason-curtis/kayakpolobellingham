@@ -24,7 +24,7 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
+    const body = await request.json() as Record<string, any>;
     const game = await updateGame(params.id, body);
     if (!game) {
       return NextResponse.json({ error: 'Game not found' }, { status: 404 });

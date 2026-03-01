@@ -3,7 +3,7 @@ import { createGame } from '@/lib/d1';
 
 export async function POST(request: NextRequest) {
   try {
-    const { date, time, signupDeadline } = await request.json();
+    const { date, time, signupDeadline } = await request.json() as any;
 
     if (!date || !time || !signupDeadline) {
       return NextResponse.json(

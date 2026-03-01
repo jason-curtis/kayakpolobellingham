@@ -1,184 +1,135 @@
-// D1 Database Operations
-// This file handles all interactions with the D1 database
+// D1 Database Operations via native Cloudflare binding
+import { getCloudflareContext } from "@opennextjs/cloudflare";
 
-export interface QueryResult {
-  success: boolean;
-  results?: any[];
-  errors?: string[];
-}
-
-const ACCOUNT_ID = '7b24a491f5dc20008fd759bb3a5b0636';
-const DATABASE_ID = 'b2a2e2bf-5b93-4c52-b2b3-94b15587addd';
-const API_TOKEN = process.env.CLOUDFLARE_API_TOKEN;
-
-async function queryD1(sql: string, params?: any[]): Promise<QueryResult> {
-  if (!API_TOKEN) {
-    throw new Error('CLOUDFLARE_API_TOKEN not set');
-  }
-
-  const response = await fetch(
-    `https://api.cloudflare.com/client/v4/accounts/${ACCOUNT_ID}/d1/database/${DATABASE_ID}/query`,
-    {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${API_TOKEN}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ sql, params }),
-    }
-  );
-
-  const data = await response.json();
-
-  if (!data.success) {
-    return {
-      success: false,
-      errors: data.errors || ['Unknown error'],
-    };
-  }
-
-  return {
-    success: true,
-    results: data.result,
-  };
+async function getDB() {
+  const { env } = await getCloudflareContext();
+  return (env as any).D1_DB;
 }
 
 // Games
-export async function getGames() {
-  const result = await queryD1('SELECT * FROM games ORDER BY date ASC');
-  return result.results || [];
+export async function getGames(): Promise<any[]> {
+  const db = await getDB();
+  const { results } = await db.prepare('SELECT * FROM games ORDER BY date ASC').all();
+  return results;
 }
 
 export async function getGame(id: string) {
-  const result = await queryD1('SELECT * FROM games WHERE id = ?', [id]);
-  return result.results?.[0] || null;
+  const db = await getDB();
+  return await db.prepare('SELECT * FROM games WHERE id = ?').bind(id).first();
 }
 
 export async function createGame(date: string, time: string, signup_deadline: string) {
+  const db = await getDB();
   const id = `game-${Date.now()}`;
   const now = new Date().toISOString();
-  const result = await queryD1(
-    'INSERT INTO games (id, date, time, signup_deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *',
-    [id, date, time, signup_deadline, 'open', now, now]
-  );
-  return result.results?.[0] || null;
+  const { results } = await db.prepare(
+    'INSERT INTO games (id, date, time, signup_deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *'
+  ).bind(id, date, time, signup_deadline, 'open', now, now).all();
+  return results[0] ?? null;
 }
 
-export async function updateGame(id: string, updates: any) {
+export async function updateGame(id: string, updates: Record<string, any>) {
+  const db = await getDB();
   const now = new Date().toISOString();
-  const fields = Object.entries(updates)
-    .map(([key], i) => `${key} = ?`)
-    .join(', ');
+  const keys = Object.keys(updates);
+  const fields = keys.map(k => `${k} = ?`).join(', ');
   const values = Object.values(updates);
 
-  const result = await queryD1(
-    `UPDATE games SET ${fields}, updated_at = ? WHERE id = ? RETURNING *`,
-    [...values, now, id]
-  );
-  return result.results?.[0] || null;
+  const { results } = await db.prepare(
+    `UPDATE games SET ${fields}, updated_at = ? WHERE id = ? RETURNING *`
+  ).bind(...values, now, id).all();
+  return results[0] ?? null;
 }
 
 export async function deleteGame(id: string) {
-  await queryD1('DELETE FROM signups WHERE game_id = ?', [id]);
-  const result = await queryD1('DELETE FROM games WHERE id = ? RETURNING id', [id]);
-  return !!result.results?.length;
+  const db = await getDB();
+  await db.prepare('DELETE FROM signups WHERE game_id = ?').bind(id).run();
+  const { results } = await db.prepare('DELETE FROM games WHERE id = ? RETURNING id').bind(id).all();
+  return results.length > 0;
 }
 
 // Signups
 export async function getSignupsForGame(gameId: string) {
-  const result = await queryD1('SELECT * FROM signups WHERE game_id = ?', [gameId]);
-  const signups = result.results || [];
+  const db = await getDB();
+  const { results } = await db.prepare('SELECT * FROM signups WHERE game_id = ?').bind(gameId).all();
 
   return {
-    in: signups.filter((s: any) => s.status === 'in').map((s: any) => s.player_name),
-    out: signups.filter((s: any) => s.status === 'out').map((s: any) => s.player_name),
+    in: results.filter((s: any) => s.status === 'in').map((s: any) => s.player_name),
+    out: results.filter((s: any) => s.status === 'out').map((s: any) => s.player_name),
   };
 }
 
 export async function addSignup(gameId: string, playerName: string, status: 'in' | 'out') {
-  const id = `sig-${Date.now()}`;
+  const db = await getDB();
   const now = new Date().toISOString();
 
-  // Try to update existing, or insert if not found
-  const existing = await queryD1(
-    'SELECT id FROM signups WHERE game_id = ? AND player_name = ?',
-    [gameId, playerName]
-  );
+  const existing = await db.prepare(
+    'SELECT id FROM signups WHERE game_id = ? AND player_name = ?'
+  ).bind(gameId, playerName).first();
 
-  if (existing.results?.length) {
-    // Update
-    return await queryD1(
-      'UPDATE signups SET status = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *',
-      [status, now, gameId, playerName]
-    );
+  if (existing) {
+    const { results } = await db.prepare(
+      'UPDATE signups SET status = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *'
+    ).bind(status, now, gameId, playerName).all();
+    return { success: true, results };
   } else {
-    // Insert
-    return await queryD1(
-      'INSERT INTO signups (id, game_id, player_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *',
-      [id, gameId, playerName, status, now, now]
-    );
+    const id = `sig-${Date.now()}`;
+    const { results } = await db.prepare(
+      'INSERT INTO signups (id, game_id, player_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
+    ).bind(id, gameId, playerName, status, now, now).all();
+    return { success: true, results };
   }
 }
 
 // Regulars
-export async function getRegulars() {
-  const result = await queryD1('SELECT * FROM regulars ORDER BY name ASC');
-  return (result.results || []).map((r: any) => ({
+export async function getRegulars(): Promise<any[]> {
+  const db = await getDB();
+  const { results } = await db.prepare('SELECT * FROM regulars ORDER BY name ASC').all();
+  return results.map((r: any) => ({
     ...r,
     aliases: r.aliases ? JSON.parse(r.aliases) : [],
   }));
 }
 
 export async function getRegular(id: string) {
-  const result = await queryD1('SELECT * FROM regulars WHERE id = ?', [id]);
-  const regular = result.results?.[0];
+  const db = await getDB();
+  const regular: any = await db.prepare('SELECT * FROM regulars WHERE id = ?').bind(id).first();
   if (!regular) return null;
-  return {
-    ...regular,
-    aliases: regular.aliases ? JSON.parse(regular.aliases) : [],
-  };
+  return { ...regular, aliases: regular.aliases ? JSON.parse(regular.aliases) : [] };
 }
 
 export async function createRegular(name: string, aliases: string[] = []) {
+  const db = await getDB();
   const id = `reg-${Date.now()}`;
   const now = new Date().toISOString();
-  const result = await queryD1(
-    'INSERT INTO regulars (id, name, aliases, created_at) VALUES (?, ?, ?, ?) RETURNING *',
-    [id, name, JSON.stringify(aliases), now]
-  );
-  const regular = result.results?.[0];
+  const { results } = await db.prepare(
+    'INSERT INTO regulars (id, name, aliases, created_at) VALUES (?, ?, ?, ?) RETURNING *'
+  ).bind(id, name, JSON.stringify(aliases), now).all();
+  const regular: any = results[0];
   if (!regular) return null;
-  return {
-    ...regular,
-    aliases: JSON.parse(regular.aliases || '[]'),
-  };
+  return { ...regular, aliases: JSON.parse(regular.aliases || '[]') };
 }
 
 export async function updateRegular(id: string, name?: string, aliases?: string[]) {
-  const updates: any = {};
+  const db = await getDB();
+  const updates: Record<string, any> = {};
   if (name) updates.name = name;
   if (aliases) updates.aliases = JSON.stringify(aliases);
-
   if (Object.keys(updates).length === 0) return null;
 
-  const fields = Object.entries(updates)
-    .map(([key]) => `${key} = ?`)
-    .join(', ');
+  const fields = Object.keys(updates).map(k => `${k} = ?`).join(', ');
   const values = Object.values(updates);
 
-  const result = await queryD1(
-    `UPDATE regulars SET ${fields} WHERE id = ? RETURNING *`,
-    [...values, id]
-  );
-  const regular = result.results?.[0];
+  const { results } = await db.prepare(
+    `UPDATE regulars SET ${fields} WHERE id = ? RETURNING *`
+  ).bind(...values, id).all();
+  const regular: any = results[0];
   if (!regular) return null;
-  return {
-    ...regular,
-    aliases: JSON.parse(regular.aliases || '[]'),
-  };
+  return { ...regular, aliases: JSON.parse(regular.aliases || '[]') };
 }
 
 export async function deleteRegular(id: string) {
-  const result = await queryD1('DELETE FROM regulars WHERE id = ? RETURNING id', [id]);
-  return !!result.results?.length;
+  const db = await getDB();
+  const { results } = await db.prepare('DELETE FROM regulars WHERE id = ? RETURNING id').bind(id).all();
+  return results.length > 0;
 }

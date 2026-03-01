@@ -6,8 +6,7 @@ export async function POST(
   { params }: { params: { id: string } }
 ) {
   try {
-    const body = await request.json();
-    const { playerName, status } = body;
+    const { playerName, status } = await request.json() as any;
 
     if (!playerName || !['in', 'out'].includes(status)) {
       return NextResponse.json(
@@ -17,13 +16,6 @@ export async function POST(
     }
 
     const result = await addSignup(params.id, playerName, status);
-    if (!result.success) {
-      return NextResponse.json(
-        { error: result.errors?.[0] || 'Signup failed' },
-        { status: 400 }
-      );
-    }
-
     return NextResponse.json({ success: true, data: result.results?.[0] });
   } catch (error) {
     console.error('Signup error:', error);
