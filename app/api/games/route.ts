@@ -13,6 +13,9 @@ export async function GET() {
         const signups = await getSignupsForGame(game.id);
         return {
           ...game,
+          signupDeadline: game.signup_deadline,
+          createdAt: game.created_at,
+          updatedAt: game.updated_at,
           signups,
           regulars: regularNames,
         };
