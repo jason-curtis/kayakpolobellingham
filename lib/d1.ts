@@ -48,35 +48,59 @@ export async function deleteGame(id: string) {
   return results.length > 0;
 }
 
+// Resolve a player name through aliases and normalize case
+export async function resolvePlayerName(inputName: string): Promise<string> {
+  const db = await getDB();
+  const { results } = await db.prepare('SELECT name, aliases FROM regulars').all();
+
+  const trimmed = inputName.trim();
+  for (const r of results as any[]) {
+    // Check if input matches a regular's name (case-insensitive)
+    if (r.name.toLowerCase() === trimmed.toLowerCase()) return r.name;
+    // Check aliases
+    const aliases: string[] = r.aliases ? JSON.parse(r.aliases) : [];
+    if (aliases.some((a: string) => a.toLowerCase() === trimmed.toLowerCase())) return r.name;
+  }
+
+  // Not a known regular — title-case the input
+  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1);
+}
+
 // Signups
 export async function getSignupsForGame(gameId: string) {
   const db = await getDB();
   const { results } = await db.prepare('SELECT * FROM signups WHERE game_id = ?').bind(gameId).all();
 
   return {
-    in: results.filter((s: any) => s.status === 'in').map((s: any) => s.player_name),
-    out: results.filter((s: any) => s.status === 'out').map((s: any) => s.player_name),
+    in: results.filter((s: any) => s.status === 'in').map((s: any) => ({ name: s.player_name, late: !!s.late })),
+    out: results.filter((s: any) => s.status === 'out').map((s: any) => ({ name: s.player_name, late: !!s.late })),
   };
 }
 
 export async function addSignup(gameId: string, playerName: string, status: 'in' | 'out') {
   const db = await getDB();
   const now = new Date().toISOString();
+  const resolvedName = await resolvePlayerName(playerName);
 
+  // Check if signup is past deadline
+  const game: any = await db.prepare('SELECT signup_deadline FROM games WHERE id = ?').bind(gameId).first();
+  const isLate = game?.signup_deadline ? new Date(now) > new Date(game.signup_deadline) : false;
+
+  // Case-insensitive lookup for existing signup
   const existing = await db.prepare(
     'SELECT id FROM signups WHERE game_id = ? AND player_name = ?'
-  ).bind(gameId, playerName).first();
+  ).bind(gameId, resolvedName).first();
 
   if (existing) {
     const { results } = await db.prepare(
-      'UPDATE signups SET status = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *'
-    ).bind(status, now, gameId, playerName).all();
+      'UPDATE signups SET status = ?, late = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *'
+    ).bind(status, isLate ? 1 : 0, now, gameId, resolvedName).all();
     return { success: true, results };
   } else {
     const id = `sig-${Date.now()}`;
     const { results } = await db.prepare(
-      'INSERT INTO signups (id, game_id, player_name, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?) RETURNING *'
-    ).bind(id, gameId, playerName, status, now, now).all();
+      'INSERT INTO signups (id, game_id, player_name, status, late, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *'
+    ).bind(id, gameId, resolvedName, status, isLate ? 1 : 0, now, now).all();
     return { success: true, results };
   }
 }

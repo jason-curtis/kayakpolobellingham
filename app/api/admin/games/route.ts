@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createGame } from '@/lib/d1';
+import { requireAdmin } from '@/lib/auth';
 
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const { date, time, signupDeadline } = await request.json() as any;
 

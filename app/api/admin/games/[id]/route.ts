@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGame, updateGame, deleteGame } from '@/lib/d1';
+import { requireAdmin } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const game = await getGame(params.id);
     if (!game) {
@@ -23,6 +26,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const body = await request.json() as Record<string, any>;
     const game = await updateGame(params.id, body);
@@ -42,6 +47,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const success = await deleteGame(params.id);
     if (!success) {

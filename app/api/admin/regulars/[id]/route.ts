@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRegular, updateRegular, deleteRegular } from '@/lib/d1';
+import { requireAdmin } from '@/lib/auth';
 
 export async function GET(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const regular = await getRegular(params.id);
     if (!regular) {
@@ -23,6 +26,8 @@ export async function PATCH(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const { name, aliases } = await request.json() as any;
     const regular = await updateRegular(params.id, name, aliases);
@@ -42,6 +47,8 @@ export async function DELETE(
   request: NextRequest,
   { params }: { params: { id: string } }
 ) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const success = await deleteRegular(params.id);
     if (!success) {

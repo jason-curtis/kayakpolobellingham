@@ -3,6 +3,11 @@
 import { useEffect, useState } from 'react';
 import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/countdown';
 
+interface SignupEntry {
+  name: string;
+  late: boolean;
+}
+
 interface Game {
   id: string;
   date: string;
@@ -10,8 +15,8 @@ interface Game {
   signupDeadline: string;
   status: 'open' | 'closed' | 'cancelled';
   signups: {
-    in: string[];
-    out: string[];
+    in: SignupEntry[];
+    out: SignupEntry[];
   };
   regulars: string[];
 }
@@ -161,8 +166,12 @@ export default function Home() {
     return 'Game Complete';
   };
 
+  const signedNames = (game: Game) => {
+    return new Set([...game.signups.in.map(s => s.name), ...game.signups.out.map(s => s.name)]);
+  };
+
   const regularsRemaining = (game: Game) => {
-    const signed = new Set([...game.signups.in, ...game.signups.out]);
+    const signed = signedNames(game);
     return game.regulars.filter(r => !signed.has(r)).length;
   };
 
@@ -255,8 +264,8 @@ export default function Home() {
                       </p>
                     </div>
                   ) : (
-                    <p className="text-sm text-red-600">
-                      ❌ <strong>Signups closed</strong> (deadline was {formatDeadlineDate(selectedGame.signupDeadline)} 6PM)
+                    <p className="text-sm text-orange-600">
+                      ⚠️ <strong>Deadline passed</strong> ({formatDeadlineDate(selectedGame.signupDeadline)} 6PM) — late signups still accepted
                     </p>
                   )}
 
@@ -272,58 +281,61 @@ export default function Home() {
                   <h3 className="font-bold text-gray-900 mb-4">👥 The Regulars</h3>
                   <div className="space-y-2 mb-6">
                     {selectedGame.regulars.map((regular) => {
-                      const isIn = selectedGame.signups.in.includes(regular);
-                      const isOut = selectedGame.signups.out.includes(regular);
+                      const inEntry = selectedGame.signups.in.find(s => s.name === regular);
+                      const outEntry = selectedGame.signups.out.find(s => s.name === regular);
                       return (
                         <div key={regular} className="flex items-center gap-3">
                           <span className={`inline-block w-3 h-3 rounded-full ${
-                            isIn ? 'bg-green-500' : isOut ? 'bg-red-500' : 'bg-gray-300'
+                            inEntry ? 'bg-green-500' : outEntry ? 'bg-red-500' : 'bg-gray-300'
                           }`} />
                           <span className="text-gray-900 flex-1">{regular}</span>
-                          {!isIn && !isOut && <span className="text-xs text-gray-500">(waiting)</span>}
+                          {inEntry?.late && <span className="text-xs text-orange-500">(late)</span>}
+                          {outEntry?.late && <span className="text-xs text-orange-500">(late)</span>}
+                          {!inEntry && !outEntry && <span className="text-xs text-gray-500">(waiting)</span>}
                         </div>
                       );
                     })}
                   </div>
 
                   {/* Your Signup */}
-                  {isSignupOpen(selectedGame) && (
-                    <div className="border-t pt-4">
-                      <h3 className="font-bold text-gray-900 mb-3">🎯 Your Signup</h3>
-                      <input
-                        type="text"
-                        placeholder="Your name"
-                        value={playerName}
-                        onChange={(e) => savePlayerName(e.target.value)}
-                        className="w-full p-2 border rounded mb-4 text-gray-900 placeholder-gray-400"
-                      />
+                  <div className="border-t pt-4">
+                    <h3 className="font-bold text-gray-900 mb-3">🎯 Your Signup</h3>
+                    {!isSignupOpen(selectedGame) && (
+                      <p className="text-xs text-orange-500 mb-2">Deadline has passed — your signup will be marked as late</p>
+                    )}
+                    <input
+                      type="text"
+                      placeholder="Your name"
+                      value={playerName}
+                      onChange={(e) => savePlayerName(e.target.value)}
+                      className="w-full p-2 border rounded mb-4 text-gray-900 placeholder-gray-400"
+                    />
 
-                      <div className="flex gap-2">
-                        <button
-                          onClick={() => submitSignup('in')}
-                          disabled={isSubmitting || !playerName.trim()}
-                          className={`flex-1 p-3 rounded font-semibold transition ${
-                            isSubmitting || !playerName.trim()
-                              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                              : 'bg-green-500 text-white hover:bg-green-600'
-                          }`}
-                        >
-                          ✅ I'm In
-                        </button>
-                        <button
-                          onClick={() => submitSignup('out')}
-                          disabled={isSubmitting || !playerName.trim()}
-                          className={`flex-1 p-3 rounded font-semibold transition ${
-                            isSubmitting || !playerName.trim()
-                              ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                              : 'bg-red-500 text-white hover:bg-red-600'
-                          }`}
-                        >
-                          ❌ I'm Out
-                        </button>
-                      </div>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() => submitSignup('in')}
+                        disabled={isSubmitting || !playerName.trim()}
+                        className={`flex-1 p-3 rounded font-semibold transition ${
+                          isSubmitting || !playerName.trim()
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-green-500 text-white hover:bg-green-600'
+                        }`}
+                      >
+                        ✅ I'm In
+                      </button>
+                      <button
+                        onClick={() => submitSignup('out')}
+                        disabled={isSubmitting || !playerName.trim()}
+                        className={`flex-1 p-3 rounded font-semibold transition ${
+                          isSubmitting || !playerName.trim()
+                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                            : 'bg-red-500 text-white hover:bg-red-600'
+                        }`}
+                      >
+                        ❌ I'm Out
+                      </button>
                     </div>
-                  )}
+                  </div>
                 </div>
               </div>
             )}

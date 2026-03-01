@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getRegulars, createRegular } from '@/lib/d1';
+import { requireAdmin } from '@/lib/auth';
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const regulars = await getRegulars();
     return NextResponse.json(regulars);
@@ -14,6 +17,8 @@ export async function GET() {
 }
 
 export async function POST(request: NextRequest) {
+  const denied = requireAdmin(request);
+  if (denied) return denied;
   try {
     const { name, aliases } = await request.json() as any;
 

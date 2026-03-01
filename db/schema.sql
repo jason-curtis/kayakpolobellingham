@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS signups (
   game_id TEXT NOT NULL,
   player_name TEXT NOT NULL,
   status TEXT NOT NULL,
+  late INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (game_id) REFERENCES games(id),
