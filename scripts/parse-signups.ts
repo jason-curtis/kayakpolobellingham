@@ -299,11 +299,16 @@ function parseSignupsFromMessage(
   const lines = body.split("\n").map((l) => l.trim()).filter(Boolean);
 
   for (const line of lines) {
-    const lower = line.toLowerCase();
+    let lower = line.toLowerCase();
 
     // Skip quoted text, signatures, forwarded mail
     if (lower.startsWith("from:") || lower.startsWith("sent:") || lower.startsWith(">")) continue;
     if (lower.includes("yahoo mail") || lower.includes("mailto:")) continue;
+
+    // Strip leading punctuation (ellipsis, dashes, bullets, etc.)
+    lower = lower.replace(/^[.\-–—*•·,;:!?]+\s*/, "");
+    // Strip filler words like "actually," / "sorry," / "wait,"
+    lower = lower.replace(/^(actually|sorry|wait|update|change|nvm|nevermind)[,:]?\s*/i, "");
 
     // Pattern: "I'm in" / "I'm out" / "I'll play" / "I'll be there" / "Count me in"
     // Check this BEFORE "Name in" to avoid matching "i'm" as a name
