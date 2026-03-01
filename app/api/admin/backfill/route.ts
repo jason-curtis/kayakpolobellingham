@@ -20,8 +20,9 @@ export async function POST(request: NextRequest) {
 
     const db = await getDB();
 
-    // Create table if not exists
-    await db.prepare(`CREATE TABLE IF NOT EXISTS attendance_history (
+    // Recreate table with correct schema
+    await db.prepare('DROP TABLE IF EXISTS attendance_history').run();
+    await db.prepare(`CREATE TABLE attendance_history (
       id TEXT PRIMARY KEY,
       game_date TEXT NOT NULL,
       player_name TEXT NOT NULL,

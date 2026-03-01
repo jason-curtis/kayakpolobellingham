@@ -30,20 +30,19 @@ CREATE TABLE IF NOT EXISTS regulars (
   created_at TEXT NOT NULL
 );
 
--- Attendance history (for extra credit analytics)
+-- Attendance history (parsed from email archives)
 CREATE TABLE IF NOT EXISTS attendance_history (
   id TEXT PRIMARY KEY,
-  game_id TEXT NOT NULL,
+  game_date TEXT NOT NULL,
   player_name TEXT NOT NULL,
   status TEXT NOT NULL,
-  email_source TEXT,
-  parsed_at TEXT,
-  created_at TEXT NOT NULL,
-  FOREIGN KEY (game_id) REFERENCES games(id)
+  source TEXT DEFAULT 'email',
+  created_at TEXT NOT NULL
 );
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_signups_game ON signups(game_id);
 CREATE INDEX IF NOT EXISTS idx_signups_player ON signups(player_name);
 CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
-CREATE INDEX IF NOT EXISTS idx_attendance_game ON attendance_history(game_id);
+CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_history(game_date);
+CREATE INDEX IF NOT EXISTS idx_attendance_player ON attendance_history(player_name);
