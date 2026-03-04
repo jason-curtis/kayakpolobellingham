@@ -99,7 +99,10 @@ export default function Home() {
         body: JSON.stringify({ playerName: playerName.trim(), status }),
       });
 
-      if (!res.ok) throw new Error('Signup failed');
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.error || 'Signup failed');
+      }
 
       savePlayerName(playerName);
       await fetchGames();
@@ -144,6 +147,12 @@ export default function Home() {
     const now = new Date();
     const deadline = new Date(game.signupDeadline);
     return now <= deadline;
+  };
+
+  const hasGameStarted = (game: Game) => {
+    const now = new Date();
+    const gameStart = new Date(`${game.date}T${game.time}`);
+    return now >= gameStart;
   };
 
   const getGameStatus = (game: Game) => {
@@ -265,7 +274,10 @@ export default function Home() {
                     </div>
                   ) : (
                     <p className="text-sm text-orange-600">
-                      ⚠️ <strong>Deadline passed</strong> ({formatDeadlineDate(selectedGame.signupDeadline)} 6PM) — late signups still accepted
+                      {hasGameStarted(selectedGame)
+                        ? '🔒 Game has started — signups are closed'
+                        : <>⚠️ <strong>Deadline passed</strong> ({formatDeadlineDate(selectedGame.signupDeadline)} 6PM) — late signups accepted until game starts</>
+                      }
                     </p>
                   )}
 
@@ -308,41 +320,47 @@ export default function Home() {
                   {/* Your Signup */}
                   <div className="border-t pt-4">
                     <h3 className="font-bold text-gray-900 mb-3">🎯 Your Signup</h3>
-                    {!isSignupOpen(selectedGame) && (
-                      <p className="text-xs text-orange-500 mb-2">Deadline has passed — your signup will be marked as late</p>
-                    )}
-                    <input
-                      type="text"
-                      placeholder="Your name"
-                      value={playerName}
-                      onChange={(e) => savePlayerName(e.target.value)}
-                      className="w-full p-2 border rounded mb-4 text-gray-900 placeholder-gray-400"
-                    />
+                    {hasGameStarted(selectedGame) ? (
+                      <p className="text-sm text-gray-500">Game has started — signups are closed.</p>
+                    ) : (
+                      <>
+                        {!isSignupOpen(selectedGame) && (
+                          <p className="text-xs text-orange-500 mb-2">Deadline has passed — your signup will be marked as late</p>
+                        )}
+                        <input
+                          type="text"
+                          placeholder="Your name"
+                          value={playerName}
+                          onChange={(e) => savePlayerName(e.target.value)}
+                          className="w-full p-2 border rounded mb-4 text-gray-900 placeholder-gray-400"
+                        />
 
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => submitSignup('in')}
-                        disabled={isSubmitting || !playerName.trim()}
-                        className={`flex-1 p-3 rounded font-semibold transition ${
-                          isSubmitting || !playerName.trim()
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-green-500 text-white hover:bg-green-600'
-                        }`}
-                      >
-                        ✅ I'm In
-                      </button>
-                      <button
-                        onClick={() => submitSignup('out')}
-                        disabled={isSubmitting || !playerName.trim()}
-                        className={`flex-1 p-3 rounded font-semibold transition ${
-                          isSubmitting || !playerName.trim()
-                            ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                            : 'bg-red-500 text-white hover:bg-red-600'
-                        }`}
-                      >
-                        ❌ I'm Out
-                      </button>
-                    </div>
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => submitSignup('in')}
+                            disabled={isSubmitting || !playerName.trim()}
+                            className={`flex-1 p-3 rounded font-semibold transition ${
+                              isSubmitting || !playerName.trim()
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-green-500 text-white hover:bg-green-600'
+                            }`}
+                          >
+                            ✅ I'm In
+                          </button>
+                          <button
+                            onClick={() => submitSignup('out')}
+                            disabled={isSubmitting || !playerName.trim()}
+                            className={`flex-1 p-3 rounded font-semibold transition ${
+                              isSubmitting || !playerName.trim()
+                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                                : 'bg-red-500 text-white hover:bg-red-600'
+                            }`}
+                          >
+                            ❌ I'm Out
+                          </button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

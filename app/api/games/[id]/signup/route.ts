@@ -17,8 +17,14 @@ export async function POST(
 
     const result = await addSignup(params.id, playerName, status);
     return NextResponse.json({ success: true, data: result.results?.[0] });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Signup error:', error);
+    if (error?.message?.includes('already started')) {
+      return NextResponse.json(
+        { error: error.message },
+        { status: 400 }
+      );
+    }
     return NextResponse.json(
       { error: 'Signup failed' },
       { status: 500 }

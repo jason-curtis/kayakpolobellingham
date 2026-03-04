@@ -94,8 +94,16 @@ export async function addSignup(gameId: string, playerName: string, status: 'in'
   const now = new Date().toISOString();
   const resolvedName = await resolvePlayerName(playerName);
 
+  // Check if game has already started
+  const game: any = await db.prepare('SELECT date, time, signup_deadline FROM games WHERE id = ?').bind(gameId).first();
+  if (game?.date && game?.time) {
+    const gameStart = new Date(`${game.date}T${game.time}`);
+    if (new Date(now) >= gameStart) {
+      throw new Error('Game has already started — signups are closed');
+    }
+  }
+
   // Check if signup is past deadline
-  const game: any = await db.prepare('SELECT signup_deadline FROM games WHERE id = ?').bind(gameId).first();
   const isLate = game?.signup_deadline ? new Date(now) > new Date(game.signup_deadline) : false;
 
   // Case-insensitive lookup for existing signup

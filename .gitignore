@@ -43,3 +43,8 @@ yarn-error.log*
 
 # Scraped data
 scripts/data/
+
+# Gas Town (added by gt)
+.runtime/
+.claude/commands/
+.logs/
