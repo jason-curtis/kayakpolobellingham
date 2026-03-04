@@ -49,3 +49,4 @@ scripts/data/
 .claude/commands/
 .logs/
 tsconfig.tsbuildinfo
+.beads/
