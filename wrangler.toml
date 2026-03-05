@@ -12,3 +12,18 @@ binding = "ASSETS"
 binding = "D1_DB"
 database_name = "kayakpolo"
 database_id = "b2a2e2bf-5b93-4c52-b2b3-94b15587addd"
+
+[observability]
+enabled = false
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
+[observability.traces]
+enabled = false
+persist = true
+head_sampling_rate = 1

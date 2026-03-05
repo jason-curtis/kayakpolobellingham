@@ -7,6 +7,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { parseInboundEmail } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
+import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -41,16 +42,35 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         textBody: payload.textBody ?? "",
       });
 
+      logger.info(
+        {
+          event: "email_parsed",
+          from: payload.from,
+          subject: payload.subject,
+          senderName: result.senderName,
+          gameDate: result.gameDate ?? undefined,
+          isGameTopic: result.isGameTopic,
+          signupCount: result.signups.length,
+          signups: result.signups,
+          applied: result.isGameTopic && result.signups.length > 0,
+        },
+        "inbound email parsed"
+      );
+
       if (!result.isGameTopic || result.signups.length === 0) {
         return { ok: true, signupsApplied: 0 };
       }
 
       const db = this.env.D1_DB;
       const { gameId, signupsApplied } = await applyInboundEmail(db, result);
+      logger.info(
+        { event: "email_applied", gameId: gameId ?? undefined, signupsApplied },
+        "parsed signups applied to D1"
+      );
       return { ok: true, gameId: gameId ?? undefined, signupsApplied };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      console.error("handleEmail error:", message);
+      logger.error({ event: "handleEmail_error", error: message }, "handleEmail failed");
       return { ok: false, error: message };
     }
   }
