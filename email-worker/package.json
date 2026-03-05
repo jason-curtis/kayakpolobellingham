@@ -1,0 +1,14 @@
+{
+  "name": "kayak-polo-email-worker",
+  "private": true,
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "postal-mime": "^2.4.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^4.20260301.1",
+    "wrangler": "^4.69.0"
+  }
+}

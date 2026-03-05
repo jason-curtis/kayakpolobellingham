@@ -2,17 +2,7 @@ import { readFileSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
 import { randomUUID } from "crypto";
-
-interface ParsedGame {
-  date: string;
-  dayOfWeek: string;
-  time: string;
-  gameOn: boolean;
-  noGame: boolean;
-  players: { name: string; status: "in" | "out" }[];
-  topicIds: string[];
-  topicTitles: string[];
-}
+import type { ParsedGame } from "../lib/email-parser";
 
 const __filename = fileURLToPath(import.meta.url);
 const SCRIPT_DIR = dirname(__filename);

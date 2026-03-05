@@ -9,9 +9,12 @@
     "lint": "next lint",
     "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview",
     "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "test": "playwright test",
-    "test:ui": "playwright test --ui",
-    "test:debug": "playwright test --debug"
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:debug": "playwright test --debug",
+    "typecheck:worker": "tsc -p tsconfig.worker.json"
   },
   "dependencies": {
     "@opennextjs/cloudflare": "^1.17.1",
@@ -24,6 +27,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260301.1",
     "@playwright/test": "^1.58.2",
+    "vitest": "^2.1.0",
     "@types/node": "^20",
     "@types/react": "^18",
     "@types/react-dom": "^18",

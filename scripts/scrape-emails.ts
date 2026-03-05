@@ -2,6 +2,7 @@ import { writeFileSync, readFileSync, existsSync } from "fs";
 import { mkdirSync } from "fs";
 import { resolve, dirname } from "path";
 import { fileURLToPath } from "url";
+import { isGameTopic } from "../lib/email-parser";
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -84,30 +85,7 @@ async function fetchPage(url: string): Promise<string> {
   return resp.text();
 }
 
-// ── Game topic filter ──────────────────────────────────────────────────────
-
-function isGameTopic(title: string): boolean {
-  const t = title.toLowerCase();
-
-  // Direct keyword matches
-  if (t.includes("post in or out")) return true;
-  if (t.includes("post in/out")) return true;
-  if (/\bgame on\b/.test(t)) return true;
-  if (/\bno game\b/.test(t)) return true;
-  if (/\bneed \d+ more\b/.test(t)) return true;
-  if (/\bone more\b/.test(t) && /\bplayer\b/.test(t)) return true;
-  if (/\bone more needed\b/.test(t)) return true;
-  if (/\bmore needed\b/.test(t)) return true;
-  if (/\bgame cancelled\b/.test(t)) return true;
-  if (/\bgame canceled\b/.test(t)) return true;
-
-  // Day of week + date-like pattern (e.g. "Sunday 3/1/26", "Weds 9/10", "Sunday Nov 14")
-  const dayPattern = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|weds?|wedd?|thurs?|tues?|sat|sun|mon|fri)\b/;
-  const datePattern = /\b(\d{1,2}\/\d{1,2}|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2})\b/;
-  if (dayPattern.test(t) && datePattern.test(t)) return true;
-
-  return false;
-}
+// isGameTopic imported from lib/email-parser.ts (shared with email worker)
 
 // ── Scrape topic list ──────────────────────────────────────────────────────
 
