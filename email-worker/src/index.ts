@@ -1,6 +1,6 @@
 import PostalMime from "postal-mime";
 
-const ALLOW_LIST = ["friend@example.com", "coworker@example.com"];
+const ALLOW_LIST = ["thatneat@gmail.com"];
 
 async function getTextBody(raw: ReadableStream): Promise<string> {
   const email = await PostalMime.parse(raw);
