@@ -5,6 +5,7 @@
     "deploy": "wrangler deploy"
   },
   "dependencies": {
+    "pino": "^9.5.0",
     "postal-mime": "^2.4.1"
   },
   "devDependencies": {

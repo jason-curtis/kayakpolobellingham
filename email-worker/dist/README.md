@@ -1,0 +1,1 @@
+This folder contains the built output assets for the worker "kayak-polo-signup-email-handler" generated at 2026-03-05T22:45:22.293Z.
