@@ -1,5 +1,6 @@
 /**
- * Custom worker: wraps OpenNext fetch handler and adds RPC entrypoint for inbound email.
+ * Custom worker: wraps OpenNext fetch handler, adds RPC entrypoint for inbound email,
+ * and scheduled handler for groups.io API polling.
  * Wrangler main should point here so the email worker can call handleEmail via service binding.
  * Type-check with: pnpm exec tsc -p tsconfig.worker.json
  */
@@ -7,6 +8,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { parseInboundEmail } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
+import { pollForNewMessages } from "./lib/poll-groups-io";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -23,6 +25,7 @@ export interface IncomingEmailPayload {
 interface Env {
   D1_DB: D1Database;
   ASSETS: Fetcher;
+  GROUPS_IO_API_KEY: string;
 }
 
 export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
@@ -32,6 +35,22 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
       this.env,
       this.ctx
     );
+  }
+
+  /** Cron trigger: poll groups.io API for new messages and process signups. */
+  async scheduled(_event: ScheduledEvent): Promise<void> {
+    const apiKey = this.env.GROUPS_IO_API_KEY;
+    if (!apiKey) {
+      logger.error({ event: "poll_no_key" }, "GROUPS_IO_API_KEY not set");
+      return;
+    }
+    try {
+      const result = await pollForNewMessages(this.env.D1_DB, apiKey);
+      logger.info({ event: "poll_scheduled", ...result }, "scheduled poll complete");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      logger.error({ event: "poll_scheduled_error", error: message }, "scheduled poll failed");
+    }
   }
 
   async handleEmail(payload: IncomingEmailPayload): Promise<{ ok: boolean; gameId?: string; signupsApplied?: number; error?: string }> {
