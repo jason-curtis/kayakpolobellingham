@@ -167,6 +167,9 @@ export async function scrapeChunk(
       return { lastMessageId: id - 1, topicsScraped, done: true };
     }
 
+    // Advance cursor for every message we fetched so we don't re-fetch the same IDs
+    lastMessageId = id;
+
     const ld = extractJsonLd(html);
     if (!ld) continue;
 
@@ -176,7 +179,6 @@ export async function scrapeChunk(
     topicsScraped++;
     const key = `${result.gameDate}|${result.time}`;
     mergeIntoGames(intoMap, key, result.gameDate, result.time, result.signups);
-    lastMessageId = id;
   }
 
   return { lastMessageId, topicsScraped, done: false };
