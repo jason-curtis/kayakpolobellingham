@@ -237,35 +237,67 @@ const MONTHS: Record<string, number> = {
   oct: 10, october: 10, nov: 11, november: 11, dec: 12, december: 12,
 };
 
-/** Parse game date from subject (single email). Uses current year if missing. */
-export function extractGameDate(subject: string): string | null {
+const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+/**
+ * Parse game date from subject (single email).
+ * referenceDate: ISO string of the message timestamp (e.g. "2009-02-25T...").
+ * Used for year fallback and past-date correction.
+ */
+export function extractGameDate(subject: string, referenceDate?: string): string | null {
   const t = subject.toLowerCase().replace(/[,.]/g, " ").replace(/\s+/g, " ");
-  const currentYear = new Date().getFullYear();
+  const refDate = referenceDate ? new Date(referenceDate) : null;
+  const fallbackYear = refDate ? refDate.getFullYear() : new Date().getFullYear();
+
+  let result: string | null = null;
 
   let m = t.match(/(\d{1,2})\/(\d{1,2})\/(\d{2,4})/);
   if (m) {
     let year = parseInt(m[3]);
     if (year < 100) year += 2000;
-    return formatDate(year, parseInt(m[1]), parseInt(m[2]));
+    result = formatDate(year, parseInt(m[1]), parseInt(m[2]));
   }
-  m = t.match(/(\d{1,2})\/(\d{1,2})(?!\d)/);
-  if (m) {
-    const month = parseInt(m[1]);
-    const day = parseInt(m[2]);
-    if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
-      return formatDate(currentYear, month, day);
+  if (!result) {
+    m = t.match(/(\d{1,2})\/(\d{1,2})(?!\d)/);
+    if (m) {
+      const month = parseInt(m[1]);
+      const day = parseInt(m[2]);
+      if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+        result = formatDate(fallbackYear, month, day);
+      }
     }
   }
-  const monthNames = Object.keys(MONTHS).join("|");
-  const re = new RegExp(`(${monthNames})\\w*\\s+(\\d{1,2})\\s*(?:,?\\s*(\\d{4}))?`);
-  m = t.match(re);
-  if (m) {
-    const month = MONTHS[m[1].toLowerCase()];
-    const day = parseInt(m[2]);
-    const year = m[3] ? parseInt(m[3]) : currentYear;
-    if (month && day >= 1 && day <= 31) return formatDate(year, month, day);
+  if (!result) {
+    const monthNames = Object.keys(MONTHS).join("|");
+    const re = new RegExp(`(${monthNames})\\w*\\s+(\\d{1,2})\\s*(?:,?\\s*(\\d{4}))?`);
+    m = t.match(re);
+    if (m) {
+      const month = MONTHS[m[1].toLowerCase()];
+      const day = parseInt(m[2]);
+      const year = m[3] ? parseInt(m[3]) : fallbackYear;
+      if (month && day >= 1 && day <= 31) result = formatDate(year, month, day);
+    }
   }
-  return null;
+
+  if (!result || !refDate) return result;
+
+  // Past-date correction: if result is before refDate and subject mentions a day name, advance
+  const parsed = new Date(`${result}T12:00:00`);
+  const refDay = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+  if (parsed < refDay) {
+    const dayName = DAY_NAMES.find((d) => t.includes(d));
+    if (dayName) {
+      const targetDow = DAY_NAMES.indexOf(dayName);
+      const refDow = refDay.getDay();
+      let daysAhead = (targetDow - refDow + 7) % 7;
+      if (daysAhead === 0) daysAhead = 7;
+      const next = new Date(refDay);
+      next.setDate(next.getDate() + daysAhead);
+      result = formatDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
+    }
+  }
+
+  return result;
 }
 
 /** Parse game date from topic title (batch); refDate = first message date for year. */

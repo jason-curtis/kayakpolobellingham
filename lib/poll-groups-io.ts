@@ -82,7 +82,7 @@ export async function pollForNewMessages(
     const snippet = decodeSnippet(msg.snippet);
     const senderName = resolveSender(msg.name);
     const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-    const gameDate = extractGameDate(subject);
+    const gameDate = extractGameDate(subject, msg.created);
 
     logger.info(
       {

@@ -89,6 +89,22 @@ describe("extractGameDate", () => {
   it("parses month name", () => {
     expect(extractGameDate("Jan 4, 2025")).toBe("2025-01-04");
   });
+  it("uses referenceDate year when year is missing (month name)", () => {
+    expect(extractGameDate("Sunday March 1", "2009-02-25T00:00:00Z")).toBe("2009-03-01");
+  });
+  it("uses referenceDate year when year is missing (M/D)", () => {
+    expect(extractGameDate("Sunday 3/1", "2009-02-25T00:00:00Z")).toBe("2009-03-01");
+  });
+  it("advances past date to next occurrence of named day", () => {
+    // 3/1/26 is a Sunday but it's before refDate 3/5, so advance to next Sunday 3/8
+    expect(extractGameDate("Sunday 3/1/26 post in our out", "2026-03-05T00:00:00Z")).toBe("2026-03-08");
+  });
+  it("does not advance future dates", () => {
+    expect(extractGameDate("Sunday 3/8", "2026-03-05T00:00:00Z")).toBe("2026-03-08");
+  });
+  it("behaves as before with no referenceDate", () => {
+    expect(extractGameDate("Sunday 3/1/26")).toBe("2026-03-01");
+  });
 });
 
 describe("isGameTopic", () => {

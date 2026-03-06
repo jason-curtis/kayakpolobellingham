@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
       const snippet = decodeSnippet(msg.snippet);
       const senderName = resolveSender(msg.name);
       const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-      const gameDate = extractGameDate(msg.subject);
+      const gameDate = extractGameDate(msg.subject, msg.created);
 
       if (!gameDate || signups.length === 0) continue;
 
