@@ -1,32 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react';
-import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/countdown';
-
-interface SignupEntry {
-  name: string;
-  late: boolean;
-}
-
-interface Game {
-  id: string;
-  date: string;
-  time: string;
-  signupDeadline: string;
-  status: 'open' | 'closed' | 'cancelled';
-  signups: {
-    in: SignupEntry[];
-    out: SignupEntry[];
-  };
-  regulars: string[];
-}
-
-interface CountdownState {
-  gameStart: Record<string, string>;
-  signupDeadline: Record<string, string>;
-}
-
-const TIMEZONE = 'America/Los_Angeles';
+import GameCard, { Game, formatGameDate, formatGameTime, getGameStatus } from '@/app/components/GameCard';
 
 export default function Home() {
   const [games, setGames] = useState<Game[]>([]);
@@ -35,7 +10,6 @@ export default function Home() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [countdowns, setCountdowns] = useState<CountdownState>({ gameStart: {}, signupDeadline: {} });
 
   // Load player name from localStorage
   useEffect(() => {
@@ -43,28 +17,6 @@ export default function Home() {
     if (stored) setPlayerName(stored);
     fetchGames();
   }, []);
-
-  // Update countdowns every second
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const newCountdowns: CountdownState = { gameStart: {}, signupDeadline: {} };
-
-      games.forEach((game) => {
-        // Calculate game start time
-        const gameStartTime = new Date(`${game.date}T${game.time}`);
-        const gameStartRemaining = getTimeRemaining(gameStartTime);
-        newCountdowns.gameStart[game.id] = formatCountdown(gameStartRemaining);
-
-        // Calculate signup deadline
-        const deadlineRemaining = getTimeRemaining(game.signupDeadline);
-        newCountdowns.signupDeadline[game.id] = formatCountdownLong(deadlineRemaining);
-      });
-
-      setCountdowns(newCountdowns);
-    }, 1000);
-
-    return () => clearInterval(interval);
-  }, [games]);
 
   const fetchGames = async () => {
     try {
@@ -85,18 +37,18 @@ export default function Home() {
     localStorage.setItem('kayakpolo_player_name', name);
   };
 
-  const submitSignup = async (status: 'in' | 'out') => {
-    if (!playerName.trim() || !selectedGame) {
+  const handleSignup = async (gameId: string, name: string, status: 'in' | 'out') => {
+    if (!name.trim()) {
       setError('Please enter your name');
       return;
     }
 
     setIsSubmitting(true);
     try {
-      const res = await fetch(`/api/games/${selectedGame.id}/signup`, {
+      const res = await fetch(`/api/games/${gameId}/signup`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ playerName: playerName.trim(), status }),
+        body: JSON.stringify({ playerName: name.trim(), status }),
       });
 
       if (!res.ok) {
@@ -104,7 +56,7 @@ export default function Home() {
         throw new Error(data?.error || 'Signup failed');
       }
 
-      savePlayerName(playerName);
+      savePlayerName(name);
       await fetchGames();
       setError('');
     } catch (err) {
@@ -112,76 +64,6 @@ export default function Home() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const formatGameDate = (dateStr: string) => {
-    const date = new Date(`${dateStr}T00:00:00`);
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      month: 'numeric',
-      day: 'numeric',
-      timeZone: TIMEZONE,
-    });
-    return formatter.format(date);
-  };
-
-  const formatGameTime = (timeStr: string) => {
-    if (!timeStr.includes(':')) return timeStr;
-    const [hours, minutes] = timeStr.split(':');
-    const hour = parseInt(hours);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const displayHour = hour % 12 || 12;
-    return `${displayHour}${parseInt(minutes) !== 0 ? ':' + minutes : ''}${ampm}`;
-  };
-
-  const formatDeadlineDate = (deadlineStr: string) => {
-    const deadline = new Date(deadlineStr);
-    const formatter = new Intl.DateTimeFormat('en-US', {
-      weekday: 'long',
-      timeZone: TIMEZONE,
-    });
-    return formatter.format(deadline);
-  };
-
-  const isSignupOpen = (game: Game) => {
-    const now = new Date();
-    const deadline = new Date(game.signupDeadline);
-    return now <= deadline;
-  };
-
-  const hasGameStarted = (game: Game) => {
-    const now = new Date();
-    const gameStart = new Date(`${game.date}T${game.time}`);
-    return now >= gameStart;
-  };
-
-  const getGameStatus = (game: Game) => {
-    const now = new Date();
-    const gameStartTime = new Date(`${game.date}T${game.time}`);
-    const deadline = new Date(game.signupDeadline);
-    const signupCount = game.signups.in.length;
-
-    // If before deadline, show signup status
-    if (now <= deadline) {
-      return signupCount >= 6 ? 'GAME ON ✅' : `${signupCount}/6`;
-    }
-
-    // After deadline but before game time, show final status
-    if (now <= gameStartTime) {
-      return signupCount >= 6 ? 'GAME ON ✅' : 'NO GAME ❌';
-    }
-
-    // Game is past
-    return signupCount >= 6 ? 'GAME ON ✅' : 'NO GAME ❌';
-  };
-
-  const signedNames = (game: Game) => {
-    return new Set([...game.signups.in.map(s => s.name), ...game.signups.out.map(s => s.name)]);
-  };
-
-  const regularsRemaining = (game: Game) => {
-    const signed = signedNames(game);
-    return game.regulars.filter(r => !signed.has(r)).length;
   };
 
   if (loading) return <div className="p-8 text-center text-white">Loading...</div>;
@@ -219,8 +101,20 @@ export default function Home() {
                       : 'bg-white/80 hover:bg-white'
                   }`}
                 >
-                  <div className="font-bold text-gray-900">{formatGameDate(game.date)}</div>
-                  <div className="text-sm text-gray-600">{formatGameTime(game.time)}</div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-bold text-gray-900">{formatGameDate(game.date)}</div>
+                      <div className="text-sm text-gray-600">{formatGameTime(game.time)}</div>
+                    </div>
+                    <a
+                      href={`/games/${game.id}`}
+                      onClick={(e) => e.stopPropagation()}
+                      className="text-blue-500 hover:text-blue-700 text-xs"
+                      title="Permalink"
+                    >
+                      🔗
+                    </a>
+                  </div>
                   <div className={`text-sm font-semibold mt-1 ${
                     getGameStatus(game).includes('GAME ON')
                       ? 'text-green-600'
@@ -236,133 +130,14 @@ export default function Home() {
 
             {/* Game Details & Signup */}
             {selectedGame && (
-              <div className="md:col-span-2 space-y-6">
-                {/* Game Header */}
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h2 className="text-3xl font-bold text-gray-900 mb-2">
-                    {formatGameDate(selectedGame.date)} • {formatGameTime(selectedGame.time)}
-                  </h2>
-
-                  {/* Main Headline */}
-                  <div className="text-lg font-semibold text-gray-800 mb-4">
-                    {selectedGame.signups.in.length} in • {selectedGame.signups.out.length} out • {regularsRemaining(selectedGame)} regulars remaining
-                  </div>
-
-                  {/* Game Status */}
-                  <div className={`text-2xl font-bold py-3 rounded mb-4 text-center ${
-                    getGameStatus(selectedGame).includes('GAME ON')
-                      ? 'bg-green-100 text-green-800'
-                      : getGameStatus(selectedGame).includes('NO GAME')
-                      ? 'bg-red-100 text-red-800'
-                      : 'bg-blue-100 text-blue-800'
-                  }`}>
-                    {getGameStatus(selectedGame)}
-                    <div className="text-sm font-normal mt-2">
-                      ⏱️ Game starts in: {countdowns.gameStart[selectedGame.id] || 'calculating...'}
-                    </div>
-                  </div>
-
-                  {/* Deadline Info */}
-                  {isSignupOpen(selectedGame) ? (
-                    <div>
-                      <p className="text-sm text-gray-600 mb-2">
-                        ✅ <strong>Signups open</strong> until {formatDeadlineDate(selectedGame.signupDeadline)} 6PM
-                      </p>
-                      <p className="text-xs text-blue-600 font-semibold">
-                        ⏱️ Closes in: {countdowns.signupDeadline[selectedGame.id] || 'loading...'}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-orange-600">
-                      {hasGameStarted(selectedGame)
-                        ? '🔒 Game has started — signups are closed'
-                        : <>⚠️ <strong>Deadline passed</strong> ({formatDeadlineDate(selectedGame.signupDeadline)} 6PM) — late signups accepted until game starts</>
-                      }
-                    </p>
-                  )}
-
-                  {!isSignupOpen(selectedGame) && selectedGame.signups.in.length < 6 && (
-                    <p className="text-sm text-red-600 mt-2">
-                      ⚠️ Game cancelled - fewer than 6 signed up
-                    </p>
-                  )}
-                </div>
-
-                {/* Signups */}
-                <div className="bg-white rounded-lg shadow-lg p-6">
-                  <h3 className="font-bold text-gray-900 mb-4">Signups</h3>
-                  <div className="space-y-2 mb-6">
-                    {selectedGame.signups.in.map((s) => (
-                      <div key={s.name} className="flex items-center gap-3">
-                        <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
-                        <span className="text-gray-900 flex-1">{s.name}</span>
-                        {s.late && <span className="text-xs text-orange-500">(late)</span>}
-                      </div>
-                    ))}
-                    {selectedGame.signups.out.map((s) => (
-                      <div key={s.name} className="flex items-center gap-3">
-                        <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
-                        <span className="text-gray-900 flex-1">{s.name}</span>
-                        {s.late && <span className="text-xs text-orange-500">(late)</span>}
-                      </div>
-                    ))}
-                    {selectedGame.regulars
-                      .filter(r => !signedNames(selectedGame).has(r))
-                      .map((regular) => (
-                        <div key={regular} className="flex items-center gap-3">
-                          <span className="inline-block w-3 h-3 rounded-full bg-gray-300" />
-                          <span className="text-gray-500 flex-1">{regular}</span>
-                          <span className="text-xs text-gray-400">(waiting)</span>
-                        </div>
-                      ))}
-                  </div>
-
-                  {/* Your Signup */}
-                  <div className="border-t pt-4">
-                    <h3 className="font-bold text-gray-900 mb-3">🎯 Your Signup</h3>
-                    {hasGameStarted(selectedGame) ? (
-                      <p className="text-sm text-gray-500">Game has started — signups are closed.</p>
-                    ) : (
-                      <>
-                        {!isSignupOpen(selectedGame) && (
-                          <p className="text-xs text-orange-500 mb-2">Deadline has passed — your signup will be marked as late</p>
-                        )}
-                        <input
-                          type="text"
-                          placeholder="Your name"
-                          value={playerName}
-                          onChange={(e) => savePlayerName(e.target.value)}
-                          className="w-full p-2 border rounded mb-4 text-gray-900 placeholder-gray-400"
-                        />
-
-                        <div className="flex gap-2">
-                          <button
-                            onClick={() => submitSignup('in')}
-                            disabled={isSubmitting || !playerName.trim()}
-                            className={`flex-1 p-3 rounded font-semibold transition ${
-                              isSubmitting || !playerName.trim()
-                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                : 'bg-green-500 text-white hover:bg-green-600'
-                            }`}
-                          >
-                            ✅ I'm In
-                          </button>
-                          <button
-                            onClick={() => submitSignup('out')}
-                            disabled={isSubmitting || !playerName.trim()}
-                            className={`flex-1 p-3 rounded font-semibold transition ${
-                              isSubmitting || !playerName.trim()
-                                ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                                : 'bg-red-500 text-white hover:bg-red-600'
-                            }`}
-                          >
-                            ❌ I'm Out
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
+              <div className="md:col-span-2">
+                <GameCard
+                  game={selectedGame}
+                  onSignup={handleSignup}
+                  playerName={playerName}
+                  onPlayerNameChange={savePlayerName}
+                  isSubmitting={isSubmitting}
+                />
               </div>
             )}
           </div>

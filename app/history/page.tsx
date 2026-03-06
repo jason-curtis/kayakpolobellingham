@@ -68,7 +68,7 @@ export default function HistoryPage() {
             const outCount = game.signups.out.length;
             const gameOn = inCount >= 6;
             return (
-              <div key={game.id} className="bg-white rounded-lg shadow p-4">
+              <a key={game.id} href={`/games/${game.id}`} className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition">
                 <div className="flex items-center justify-between">
                   <div>
                     <div className="font-bold text-gray-900">{formatDate(game.date)}</div>
@@ -85,7 +85,7 @@ export default function HistoryPage() {
                     )}
                   </div>
                 </div>
-              </div>
+              </a>
             );
           })}
         </div>
