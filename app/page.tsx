@@ -5,6 +5,10 @@ import GameCard, { Game, formatGameDate, formatGameTime, getGameStatus } from '@
 
 export default function Home() {
   const [games, setGames] = useState<Game[]>([]);
+  const [moreGames, setMoreGames] = useState<Game[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [showMore, setShowMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [selectedGame, setSelectedGame] = useState<Game | null>(null);
   const [playerName, setPlayerName] = useState('');
   const [loading, setLoading] = useState(true);
@@ -29,6 +33,26 @@ export default function Home() {
       setError(err instanceof Error ? err.message : 'Error loading games');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchMoreGames = async () => {
+    setLoadingMore(true);
+    try {
+      const offset = moreGames.length;
+      const res = await fetch(`/api/games?view=more&offset=${offset}&limit=8`);
+      if (!res.ok) throw new Error('Failed to fetch more games');
+      const data = await res.json();
+      const homeIds = new Set(games.map((g) => g.id));
+      const existingIds = new Set(moreGames.map((g) => g.id));
+      const newGames = data.games.filter((g: Game) => !homeIds.has(g.id) && !existingIds.has(g.id));
+      setMoreGames((prev) => [...prev, ...newGames]);
+      setHasMore(data.hasMore);
+      setShowMore(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Error loading games');
+    } finally {
+      setLoadingMore(false);
     }
   };
 
@@ -91,7 +115,7 @@ export default function Home() {
           <div className="grid md:grid-cols-3 gap-6">
             {/* Game List */}
             <div className="md:col-span-1 space-y-2">
-              {games.map((game) => (
+              {[...games, ...(showMore ? moreGames : [])].map((game) => (
                 <button
                   key={game.id}
                   onClick={() => setSelectedGame(game)}
@@ -126,6 +150,22 @@ export default function Home() {
                   </div>
                 </button>
               ))}
+              {!showMore ? (
+                <button
+                  onClick={fetchMoreGames}
+                  disabled={loadingMore}
+                  className="w-full p-3 rounded-lg text-center text-sm font-medium text-blue-100 bg-white/20 hover:bg-white/30 transition"
+                >
+                  {loadingMore ? 'Loading...' : 'More games...'}
+                </button>
+              ) : hasMore ? (
+                <a
+                  href="/history"
+                  className="block w-full p-3 rounded-lg text-center text-sm font-medium text-blue-100 bg-white/20 hover:bg-white/30 transition"
+                >
+                  View all games
+                </a>
+              ) : null}
             </div>
 
             {/* Game Details & Signup */}

@@ -54,6 +54,28 @@ export async function getUpcomingAndRecentGames(database?: D1 | null): Promise<{
   return { upcoming, recent };
 }
 
+export async function getHomeGames(database?: D1 | null): Promise<any[]> {
+  const d = await db(database);
+  const today = new Date().toISOString().split("T")[0];
+  const { results: upcoming } = await d.prepare(
+    "SELECT * FROM games WHERE date >= ? ORDER BY date ASC LIMIT 2"
+  ).bind(today).all();
+  const { results: recent } = await d.prepare(
+    "SELECT * FROM games WHERE date < ? ORDER BY date DESC LIMIT 1"
+  ).bind(today).all();
+  return [...(upcoming as any[]), ...(recent as any[])];
+}
+
+export async function getMoreGames(offset: number, limit: number, database?: D1 | null): Promise<{ games: any[]; hasMore: boolean }> {
+  const d = await db(database);
+  const { results } = await d.prepare(
+    "SELECT * FROM games ORDER BY date DESC LIMIT ? OFFSET ?"
+  ).bind(limit + 1, offset).all();
+  const games = results as any[];
+  const hasMore = games.length > limit;
+  return { games: games.slice(0, limit), hasMore };
+}
+
 export async function getGame(id: string, database?: D1 | null) {
   const d = await db(database);
   return d.prepare("SELECT * FROM games WHERE id = ?").bind(id).first();

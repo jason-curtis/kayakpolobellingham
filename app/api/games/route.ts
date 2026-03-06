@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getGames, getGamesPaginated, getUpcomingAndRecentGames, getSignupsForGame, getRegulars } from '@/lib/d1';
+import { getGames, getGamesPaginated, getUpcomingAndRecentGames, getHomeGames, getMoreGames, getSignupsForGame, getRegulars } from '@/lib/d1';
 
 async function enrichGame(game: any, regularNames: string[]) {
   const signups = await getSignupsForGame(game.id);
@@ -20,10 +20,17 @@ export async function GET(request: NextRequest) {
     const regularNames = regulars.map(r => r.name);
 
     if (view === 'home') {
-      const { upcoming, recent } = await getUpcomingAndRecentGames();
-      const games = [upcoming, recent].filter(Boolean);
+      const games = await getHomeGames();
       const enriched = await Promise.all(games.map(g => enrichGame(g, regularNames)));
       return NextResponse.json(enriched);
+    }
+
+    if (view === 'more') {
+      const offset = parseInt(request.nextUrl.searchParams.get('offset') || '0');
+      const limit = Math.min(20, Math.max(1, parseInt(request.nextUrl.searchParams.get('limit') || '5')));
+      const { games, hasMore } = await getMoreGames(offset, limit);
+      const enriched = await Promise.all(games.map(g => enrichGame(g, regularNames)));
+      return NextResponse.json({ games: enriched, hasMore });
     }
 
     // Paginated: history page
