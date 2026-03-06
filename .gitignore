@@ -52,3 +52,7 @@ scripts/data/
 .logs/
 tsconfig.tsbuildinfo
 .beads/
+
+# Dolt database files (added by bd init)
+.dolt/
+*.db
