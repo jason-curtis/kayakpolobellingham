@@ -30,19 +30,24 @@ CREATE TABLE IF NOT EXISTS regulars (
   created_at TEXT NOT NULL
 );
 
--- Attendance history (parsed from email archives)
-CREATE TABLE IF NOT EXISTS attendance_history (
+-- Scrapes (Groups.io scrape runs; last_message_id for resume)
+CREATE TABLE IF NOT EXISTS scrapes (
   id TEXT PRIMARY KEY,
-  game_date TEXT NOT NULL,
-  player_name TEXT NOT NULL,
-  status TEXT NOT NULL,
-  source TEXT DEFAULT 'email',
-  created_at TEXT NOT NULL
+  completed_at TEXT NOT NULL,
+  last_message_id INTEGER NOT NULL,
+  topics_scraped INTEGER NOT NULL,
+  games_inserted INTEGER NOT NULL,
+  signups_inserted INTEGER NOT NULL
+);
+
+-- In-progress scrape state (one row id='cursor'; games_json = accumulated games for resume)
+CREATE TABLE IF NOT EXISTS scrape_cursor (
+  id TEXT PRIMARY KEY,
+  last_message_id INTEGER NOT NULL,
+  games_json TEXT NOT NULL
 );
 
 -- Indexes for performance
 CREATE INDEX IF NOT EXISTS idx_signups_game ON signups(game_id);
 CREATE INDEX IF NOT EXISTS idx_signups_player ON signups(player_name);
 CREATE INDEX IF NOT EXISTS idx_games_date ON games(date);
-CREATE INDEX IF NOT EXISTS idx_attendance_date ON attendance_history(game_date);
-CREATE INDEX IF NOT EXISTS idx_attendance_player ON attendance_history(player_name);

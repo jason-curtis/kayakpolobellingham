@@ -17,8 +17,17 @@ interface Regular {
   aliases: string[];
 }
 
-type Tab = 'games' | 'regulars';
+type Tab = 'games' | 'regulars' | 'scrape';
 type Action = 'list' | 'create' | 'edit';
+
+interface ScrapeLatest {
+  id: string;
+  completed_at: string;
+  last_message_id: number;
+  topics_scraped: number;
+  games_inserted: number;
+  signups_inserted: number;
+}
 
 export default function AdminPortal() {
   const router = useRouter();
@@ -46,6 +55,11 @@ export default function AdminPortal() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Scrape state
+  const [scrapeLoading, setScrapeLoading] = useState(false);
+  const [scrapeMessage, setScrapeMessage] = useState('');
+  const [scrapeLatest, setScrapeLatest] = useState<ScrapeLatest | null>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,6 +94,53 @@ export default function AdminPortal() {
       if (regularsRes.ok) setRegulars(await regularsRes.json());
     } catch (err) {
       console.error('Failed to fetch data:', err);
+    }
+  };
+
+  const fetchScrapeStatus = async () => {
+    try {
+      const res = await fetch('/api/admin/scrape-status');
+      if (res.ok) {
+        const data = await res.json();
+        setScrapeLatest(data.latest ?? null);
+      }
+    } catch (err) {
+      console.error('Failed to fetch scrape status:', err);
+    }
+  };
+
+  const handleScrapeFromGroups = async () => {
+    setScrapeLoading(true);
+    setScrapeMessage('');
+    setError('');
+    try {
+      let nextStartId: number | undefined;
+      for (;;) {
+        const body = nextStartId != null ? { startId: nextStartId } : {};
+        const res = await fetch('/api/admin/scrape-from-groups', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(body),
+        });
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? 'Scrape failed');
+          break;
+        }
+        const data = await res.json();
+        if (data.done) {
+          setScrapeMessage(`Done! ${data.gamesInserted ?? 0} games, ${data.signupsInserted ?? 0} signups.`);
+          await fetchScrapeStatus();
+          fetchData();
+          break;
+        }
+        nextStartId = data.nextStartId;
+        setScrapeMessage(`Scraped to message ${data.lastMessageId}… continuing.`);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Scrape failed');
+    } finally {
+      setScrapeLoading(false);
     }
   };
 
@@ -306,6 +367,19 @@ export default function AdminPortal() {
             }`}
           >
             👥 Regulars
+          </button>
+          <button
+            onClick={() => {
+              setTab('scrape');
+              fetchScrapeStatus();
+            }}
+            className={`px-4 py-2 rounded font-semibold transition ${
+              tab === 'scrape'
+                ? 'bg-white text-blue-600'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            📥 Scrape
           </button>
         </div>
 
@@ -669,6 +743,39 @@ export default function AdminPortal() {
                 </form>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Scrape Tab */}
+        {tab === 'scrape' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              📥 Scrape from Groups.io
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Fetch game topics and signups from the group. Progress is saved between chunks; re-run to resume.
+            </p>
+            <div className="flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={handleScrapeFromGroups}
+                disabled={scrapeLoading}
+                className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400 w-fit"
+              >
+                {scrapeLoading ? 'Scraping…' : 'Scrape from Groups.io'}
+              </button>
+              {scrapeMessage && (
+                <p className="text-gray-700">{scrapeMessage}</p>
+              )}
+              {scrapeLatest && (
+                <div className="border rounded p-4 bg-gray-50 text-gray-800">
+                  <div className="font-semibold mb-2">Last successful scrape</div>
+                  <div className="text-sm">
+                    {new Date(scrapeLatest.completed_at).toLocaleString()} — last message ID {scrapeLatest.last_message_id}, {scrapeLatest.topics_scraped} topics, {scrapeLatest.games_inserted} games, {scrapeLatest.signups_inserted} signups
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>
