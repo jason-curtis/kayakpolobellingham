@@ -40,6 +40,7 @@
     "dist",
     ".next",
     "worker.ts",
-    "email-worker"
+    "email-worker",
+    "mail"
   ]
 }
