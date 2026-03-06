@@ -20,6 +20,19 @@ interface Regular {
 type Tab = 'games' | 'regulars' | 'scrape';
 type Action = 'list' | 'create' | 'edit';
 
+function Shimmer({ rows = 3 }: { rows?: number }) {
+  return (
+    <div className="space-y-3 animate-pulse">
+      {Array.from({ length: rows }).map((_, i) => (
+        <div key={i} className="border rounded p-4 bg-gray-50">
+          <div className="h-4 bg-gray-200 rounded w-1/3 mb-2" />
+          <div className="h-3 bg-gray-200 rounded w-1/2" />
+        </div>
+      ))}
+    </div>
+  );
+}
+
 interface ScrapeLatest {
   id: string;
   completed_at: string;
@@ -32,6 +45,7 @@ interface ScrapeLatest {
 export default function AdminPortal() {
   const router = useRouter();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [authChecked, setAuthChecked] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [tab, setTab] = useState<Tab>('games');
@@ -39,6 +53,9 @@ export default function AdminPortal() {
 
   // Games state
   const [games, setGames] = useState<Game[]>([]);
+  const [gamesLoading, setGamesLoading] = useState(false);
+  const [gamesPage, setGamesPage] = useState(1);
+  const [gamesTotalPages, setGamesTotalPages] = useState(1);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [newGame, setNewGame] = useState({
     date: '',
@@ -48,6 +65,7 @@ export default function AdminPortal() {
 
   // Regulars state
   const [regulars, setRegulars] = useState<Regular[]>([]);
+  const [regularsLoading, setRegularsLoading] = useState(false);
   const [editingRegular, setEditingRegular] = useState<Regular | null>(null);
   const [newRegular, setNewRegular] = useState({
     name: '',
@@ -55,6 +73,22 @@ export default function AdminPortal() {
   });
 
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Check existing session on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const res = await fetch('/api/admin/regulars');
+        if (res.ok) {
+          setIsLoggedIn(true);
+          setRegulars(await res.json());
+          fetchGames();
+        }
+      } catch {}
+      setAuthChecked(true);
+    };
+    checkAuth();
+  }, []);
 
   // Scrape state
   const [scrapeLoading, setScrapeLoading] = useState(false);
@@ -87,18 +121,37 @@ export default function AdminPortal() {
     }
   };
 
-  const fetchData = async () => {
+  const fetchGames = async (page = 1) => {
+    setGamesLoading(true);
     try {
-      const [gamesRes, regularsRes] = await Promise.all([
-        fetch('/api/admin/games'),
-        fetch('/api/admin/regulars'),
-      ]);
-
-      if (gamesRes.ok) setGames(await gamesRes.json());
-      if (regularsRes.ok) setRegulars(await regularsRes.json());
+      const res = await fetch(`/api/admin/games?page=${page}&limit=20`);
+      if (res.ok) {
+        const data = await res.json();
+        setGames(data.games);
+        setGamesPage(data.page);
+        setGamesTotalPages(data.totalPages);
+      }
     } catch (err) {
-      console.error('Failed to fetch data:', err);
+      console.error('Failed to fetch games:', err);
+    } finally {
+      setGamesLoading(false);
     }
+  };
+
+  const fetchRegulars = async () => {
+    setRegularsLoading(true);
+    try {
+      const res = await fetch('/api/admin/regulars');
+      if (res.ok) setRegulars(await res.json());
+    } catch (err) {
+      console.error('Failed to fetch regulars:', err);
+    } finally {
+      setRegularsLoading(false);
+    }
+  };
+
+  const fetchData = async () => {
+    await Promise.all([fetchGames(), fetchRegulars()]);
   };
 
   const fetchScrapeStatus = async () => {
@@ -308,6 +361,14 @@ export default function AdminPortal() {
     }
   };
 
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4">
+        <div className="text-white text-lg">Loading...</div>
+      </div>
+    );
+  }
+
   if (!isLoggedIn) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4">
@@ -432,40 +493,65 @@ export default function AdminPortal() {
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     📋 Games
                   </h2>
-                  {games.length === 0 ? (
+                  {gamesLoading ? (
+                    <Shimmer rows={5} />
+                  ) : games.length === 0 ? (
                     <p className="text-gray-600">No games yet.</p>
                   ) : (
-                    <div className="space-y-3">
-                      {games.map((game) => (
-                        <div key={game.id} className="border rounded p-4 bg-gray-50 flex justify-between items-start">
-                          <div>
-                            <div className="font-bold text-gray-900">
-                              {game.date} • {game.time}
+                    <>
+                      <div className="space-y-3">
+                        {games.map((game) => (
+                          <div key={game.id} className="border rounded p-4 bg-gray-50 flex justify-between items-start">
+                            <div>
+                              <div className="font-bold text-gray-900">
+                                {game.date} • {game.time}
+                              </div>
+                              <div className="text-sm text-gray-600 mt-1">
+                                Deadline: {new Date(game.signup_deadline).toLocaleString()}
+                              </div>
                             </div>
-                            <div className="text-sm text-gray-600 mt-1">
-                              Deadline: {new Date(game.signup_deadline).toLocaleString()}
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => {
+                                  setEditingGame(game);
+                                  setAction('edit');
+                                }}
+                                className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
+                              >
+                                Edit
+                              </button>
+                              <button
+                                onClick={() => handleDeleteGame(game.id)}
+                                className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
+                              >
+                                Delete
+                              </button>
                             </div>
                           </div>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => {
-                                setEditingGame(game);
-                                setAction('edit');
-                              }}
-                              className="px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700"
-                            >
-                              Edit
-                            </button>
-                            <button
-                              onClick={() => handleDeleteGame(game.id)}
-                              className="px-3 py-1 bg-red-600 text-white rounded text-sm hover:bg-red-700"
-                            >
-                              Delete
-                            </button>
-                          </div>
+                        ))}
+                      </div>
+                      {gamesTotalPages > 1 && (
+                        <div className="flex items-center justify-center gap-2 mt-4">
+                          <button
+                            onClick={() => fetchGames(gamesPage - 1)}
+                            disabled={gamesPage <= 1}
+                            className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
+                          >
+                            Prev
+                          </button>
+                          <span className="text-sm text-gray-600">
+                            Page {gamesPage} of {gamesTotalPages}
+                          </span>
+                          <button
+                            onClick={() => fetchGames(gamesPage + 1)}
+                            disabled={gamesPage >= gamesTotalPages}
+                            className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
+                          >
+                            Next
+                          </button>
                         </div>
-                      ))}
-                    </div>
+                      )}
+                    </>
                   )}
                 </div>
               </>
@@ -621,7 +707,9 @@ export default function AdminPortal() {
                   <h2 className="text-xl font-bold text-gray-900 mb-4">
                     👥 Regulars
                   </h2>
-                  {regulars.length === 0 ? (
+                  {regularsLoading ? (
+                    <Shimmer rows={4} />
+                  ) : regulars.length === 0 ? (
                     <p className="text-gray-600">No regulars yet.</p>
                   ) : (
                     <div className="space-y-3">

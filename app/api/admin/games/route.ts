@@ -1,11 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { createGame, getGames, getSignupsForGame } from '@/lib/d1';
+import { createGame, getGames, getGamesPaginated, getSignupsForGame } from '@/lib/d1';
 import { requireAdmin } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
   const denied = requireAdmin(request);
   if (denied) return denied;
   try {
+    const pageParam = request.nextUrl.searchParams.get('page');
+    if (pageParam) {
+      const page = Math.max(1, parseInt(pageParam) || 1);
+      const limit = Math.min(100, Math.max(1, parseInt(request.nextUrl.searchParams.get('limit') || '20') || 20));
+      const { games, total } = await getGamesPaginated(page, limit);
+      const enriched = await Promise.all(games.map(async (game: any) => {
+        const signups = await getSignupsForGame(game.id);
+        return { ...game, signups };
+      }));
+      return NextResponse.json({ games: enriched, page, totalPages: Math.ceil(total / limit), total });
+    }
     const games = await getGames();
     const enriched = await Promise.all(games.map(async (game: any) => {
       const signups = await getSignupsForGame(game.id);
