@@ -168,6 +168,8 @@ async function scrapeAllTopics(existingIds: Set<string>, incremental: boolean): 
 
 // ── Scrape individual topic ────────────────────────────────────────────────
 
+const MAX_PAGES = 50;
+
 async function scrapeTopic(info: TopicInfo): Promise<Topic> {
   const topic: Topic = {
     topicId: info.topicId,
@@ -179,7 +181,7 @@ async function scrapeTopic(info: TopicInfo): Promise<Topic> {
   let page = 1;
   let hasMore = true;
 
-  while (hasMore) {
+  while (hasMore && page <= MAX_PAGES) {
     const url =
       page === 1 ? info.url : `${info.url}?page=${page}`;
     const html = await fetchPage(url);

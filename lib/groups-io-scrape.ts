@@ -141,14 +141,19 @@ export function deserializeGamesMap(json: string): GamesMap {
   return map;
 }
 
+/** Max consecutive 404s before concluding we've passed the end.
+ *  groups.io message IDs are non-contiguous, so single 404s are normal gaps. */
+const MAX_CONSECUTIVE_404S = 50;
+
 /** Run one chunk: fetch up to maxMessages starting from startId, merge into provided map. Returns last id processed and count of game messages. */
 export async function scrapeChunk(
   startId: number,
   maxMessages: number,
   intoMap: GamesMap
 ): Promise<{ lastMessageId: number; topicsScraped: number; done: boolean }> {
-  let lastMessageId = startId - 1;
+  let lastIdAttempted = startId - 1;
   let topicsScraped = 0;
+  let consecutive404s = 0;
 
   for (let i = 0; i < maxMessages; i++) {
     const id = startId + i;
@@ -159,16 +164,21 @@ export async function scrapeChunk(
       html = await fetchMessagePage(id);
     } catch (err) {
       // Treat non-404 errors as terminal for this chunk
-      return { lastMessageId, topicsScraped, done: false };
+      return { lastMessageId: lastIdAttempted, topicsScraped, done: false };
     }
+
+    // Always advance cursor so we don't re-fetch the same IDs
+    lastIdAttempted = id;
 
     if (html === "") {
-      // 404 or empty -> we've passed the end
-      return { lastMessageId: id - 1, topicsScraped, done: true };
+      consecutive404s++;
+      if (consecutive404s >= MAX_CONSECUTIVE_404S) {
+        return { lastMessageId: lastIdAttempted, topicsScraped, done: true };
+      }
+      continue;
     }
 
-    // Advance cursor for every message we fetched so we don't re-fetch the same IDs
-    lastMessageId = id;
+    consecutive404s = 0;
 
     const ld = extractJsonLd(html);
     if (!ld) continue;
@@ -181,5 +191,5 @@ export async function scrapeChunk(
     mergeIntoGames(intoMap, key, result.gameDate, result.time, result.signups);
   }
 
-  return { lastMessageId, topicsScraped, done: false };
+  return { lastMessageId: lastIdAttempted, topicsScraped, done: false };
 }
