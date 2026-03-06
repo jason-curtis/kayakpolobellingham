@@ -3,6 +3,18 @@ import { logger } from "./logger";
 
 const ALLOW_LIST = ["thatneat@gmail.com"];
 
+async function matchesAllowList(from: string): Promise<boolean> {
+  // cloudflare email handling turns sender into something like
+  // thatneat+caf_=kayak-polo-signup=magamoney.fyi@gmail.com
+  // if it was originally thatneat@gmail.com.
+  const allowed_prefix_suffix_combinations = ALLOW_LIST.map(email => email.split('@'));
+
+  const [from_before_at, from_after_at] = from.split('@');
+  return allowed_prefix_suffix_combinations.some(combination => {
+    return from_before_at.startsWith(combination[0]) && combination[1] === from_after_at;
+  });
+}
+
 async function getTextBody(raw: ReadableStream): Promise<string> {
   const email = await PostalMime.parse(raw);
   return email.text ?? email.html?.replace(/<[^>]+>/g, " ").trim() ?? "";
@@ -21,7 +33,7 @@ export default {
       "inbound email received"
     );
 
-    if (!ALLOW_LIST.includes(message.from)) {
+    if (!await matchesAllowList(message.from)) {
       logger.warn(
         { event: "email_rejected", from: message.from, reason: "address not in allow list" },
         "address not allowed"
