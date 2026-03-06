@@ -1,11 +1,10 @@
 /**
  * Poll groups.io API for new messages, parse signups, and apply to D1.
- * Used as hourly reconciliation to catch anything the email pipeline misses.
+ * Replaces the Cloudflare Email Worker pipeline with direct API polling.
  */
-import { fetchRecentMessages, decodeSnippet, messageUrl, type GroupsIoMessage } from "./groups-io-api";
-import { parseGameMessage, isGameTopic } from "./email-parser";
+import { fetchRecentMessages, decodeSnippet, type GroupsIoMessage } from "./groups-io-api";
+import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
-import { checkAndNotify, type SendEmailFn } from "./game-on-notify";
 import { logger } from "./logger";
 
 const GROUP_ID = 14099;
@@ -46,8 +45,6 @@ export interface PollResult {
 export async function pollForNewMessages(
   db: D1,
   apiKey: string,
-  openrouterKey?: string,
-  sendEmail?: SendEmailFn,
 ): Promise<PollResult> {
   const cursor = await getCursor(db);
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, FETCH_LIMIT);
@@ -82,14 +79,10 @@ export async function pollForNewMessages(
       continue;
     }
 
-    const snippet = decodeSnippet(msg.body || msg.snippet);
-    const result = await parseGameMessage({
-      subject,
-      body: snippet,
-      senderName: msg.name,
-      referenceDate: msg.created,
-      openrouterKey,
-    });
+    const snippet = decodeSnippet(msg.snippet);
+    const senderName = resolveSender(msg.name);
+    const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
+    const gameDate = extractGameDate(subject);
 
     logger.info(
       {
@@ -97,41 +90,28 @@ export async function pollForNewMessages(
         msgNum: msg.msg_num,
         subject,
         sender: msg.name,
-        resolvedSender: result.senderName,
-        gameDate: result.gameDate,
-        signupCount: result.signups.length,
-        signups: result.signups,
+        resolvedSender: senderName,
+        gameDate,
+        signupCount: signups.length,
+        signups,
         snippet,
       },
       "parsed groups.io message"
     );
 
-    if (result.signups.length === 0 || !result.gameDate) continue;
+    if (signups.length === 0 || !gameDate) continue;
 
-    try {
-      const applyResult = await applyInboundEmail(db, result, messageUrl(msg.msg_num), msg.created);
+    const result = await applyInboundEmail(db, {
+      senderName,
+      signups,
+      gameDate,
+      isGameTopic: true,
+      rawBody: snippet,
+    });
 
-      totalSignups += applyResult.signupsApplied;
-      if (applyResult.gameId && !gamesAffected.includes(applyResult.gameId)) {
-        gamesAffected.push(applyResult.gameId);
-      }
-
-      // Check if this signup triggered game-on threshold
-      if (applyResult.gameId && sendEmail) {
-        try {
-          await checkAndNotify(db, applyResult.gameId, sendEmail);
-        } catch (err) {
-          logger.warn(
-            { event: "game_on_check_error", gameId: applyResult.gameId, error: String(err) },
-            "game-on notification check failed (non-fatal)",
-          );
-        }
-      }
-    } catch (err) {
-      logger.warn(
-        { event: "poll_apply_error", msgNum: msg.msg_num, subject, error: String(err) },
-        "failed to apply message, skipping"
-      );
+    totalSignups += result.signupsApplied;
+    if (result.gameId && !gamesAffected.includes(result.gameId)) {
+      gamesAffected.push(result.gameId);
     }
   }
 

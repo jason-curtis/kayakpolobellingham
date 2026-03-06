@@ -8,9 +8,9 @@ compatibility_flags = ["nodejs_compat"]
 directory = ".open-next/assets"
 binding = "ASSETS"
 
-# Hourly reconciliation: catch anything the email pipeline missed
+# Poll groups.io API for new messages every 5 minutes
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/5 * * * *"]
 
 [[d1_databases]]
 binding = "D1_DB"

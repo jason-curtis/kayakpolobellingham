@@ -1,16 +1,14 @@
 /**
  * Custom worker: wraps OpenNext fetch handler, adds RPC entrypoint for inbound email,
- * and scheduled handler for hourly groups.io API reconciliation.
+ * and scheduled handler for groups.io API polling.
  * Wrangler main should point here so the email worker can call handleEmail via service binding.
  * Type-check with: pnpm exec tsc -p tsconfig.worker.json
  */
 /// <reference types="@cloudflare/workers-types" />
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { parseGameMessage, extractSenderName } from "./lib/email-parser";
+import { parseInboundEmail } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
 import { pollForNewMessages } from "./lib/poll-groups-io";
-import { checkAndNotify } from "./lib/game-on-notify";
-import { createGroupsIoSender } from "./lib/send-email";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -28,7 +26,6 @@ interface Env {
   D1_DB: D1Database;
   ASSETS: Fetcher;
   GROUPS_IO_API_KEY: string;
-  OPENROUTER_API_KEY: string;
 }
 
 export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
@@ -40,7 +37,7 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
     );
   }
 
-  /** Hourly reconciliation: poll groups.io API to catch messages the email pipeline missed. */
+  /** Cron trigger: poll groups.io API for new messages and process signups. */
   async scheduled(_event: ScheduledEvent): Promise<void> {
     const apiKey = this.env.GROUPS_IO_API_KEY;
     if (!apiKey) {
@@ -48,23 +45,20 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
       return;
     }
     try {
-      logger.info({ event: "reconciliation_start" }, "hourly reconciliation sweep starting");
-      const sendEmail = createGroupsIoSender(apiKey);
-      const result = await pollForNewMessages(this.env.D1_DB, apiKey, this.env.OPENROUTER_API_KEY, sendEmail);
-      logger.info({ event: "reconciliation_complete", ...result }, "hourly reconciliation sweep complete");
+      const result = await pollForNewMessages(this.env.D1_DB, apiKey);
+      logger.info({ event: "poll_scheduled", ...result }, "scheduled poll complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error({ event: "reconciliation_error", error: message }, "hourly reconciliation failed");
+      logger.error({ event: "poll_scheduled_error", error: message }, "scheduled poll failed");
     }
   }
 
   async handleEmail(payload: IncomingEmailPayload): Promise<{ ok: boolean; gameId?: string; signupsApplied?: number; error?: string }> {
     try {
-      const result = await parseGameMessage({
+      const result = parseInboundEmail({
+        from: payload.from,
         subject: payload.subject,
-        body: payload.textBody ?? "",
-        senderName: extractSenderName(payload.from),
-        openrouterKey: this.env.OPENROUTER_API_KEY,
+        textBody: payload.textBody ?? "",
       });
 
       logger.info(
@@ -92,20 +86,6 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         { event: "email_applied", gameId: gameId ?? undefined, signupsApplied },
         "parsed signups applied to D1"
       );
-
-      // Check if this signup triggered game-on threshold
-      if (gameId && this.env.GROUPS_IO_API_KEY) {
-        try {
-          const sendEmail = createGroupsIoSender(this.env.GROUPS_IO_API_KEY);
-          await checkAndNotify(db, gameId, sendEmail);
-        } catch (err) {
-          logger.warn(
-            { event: "game_on_check_error", gameId, error: String(err) },
-            "game-on notification check failed (non-fatal)",
-          );
-        }
-      }
-
       return { ok: true, gameId: gameId ?? undefined, signupsApplied };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

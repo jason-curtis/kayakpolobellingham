@@ -9,9 +9,7 @@ export async function POST(request: NextRequest) {
 
   try {
     const { env } = await getCloudflareContext();
-    const { D1_DB, GROUPS_IO_API_KEY, OPENROUTER_API_KEY } = env as {
-      D1_DB: any; GROUPS_IO_API_KEY: string; OPENROUTER_API_KEY?: string;
-    };
+    const { D1_DB, GROUPS_IO_API_KEY } = env as { D1_DB: any; GROUPS_IO_API_KEY: string };
 
     if (!GROUPS_IO_API_KEY) {
       return NextResponse.json(
@@ -20,7 +18,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const result = await pollForNewMessages(D1_DB, GROUPS_IO_API_KEY, OPENROUTER_API_KEY);
+    const result = await pollForNewMessages(D1_DB, GROUPS_IO_API_KEY);
     return NextResponse.json(result);
   } catch (error) {
     console.error("Poll error:", error);
