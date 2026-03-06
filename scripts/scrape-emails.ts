@@ -180,6 +180,7 @@ async function scrapeTopic(info: TopicInfo): Promise<Topic> {
 
   let page = 1;
   let hasMore = true;
+  const MAX_PAGES = 50; // safety limit to prevent infinite loops
 
   while (hasMore && page <= MAX_PAGES) {
     const url =

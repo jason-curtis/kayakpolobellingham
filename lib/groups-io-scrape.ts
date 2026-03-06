@@ -6,8 +6,6 @@
 import {
   isGameTopic,
   isBadName,
-  isMidweekDate,
-  getGameTime,
   parseDateFromTitle,
   parseSignupsFromMessage,
   resolveName,
@@ -53,7 +51,9 @@ export function processMessage(ld: DiscussionForumPosting): { gameDate: string; 
   const gameDate = parseDateFromTitle(headline, refDate);
   if (!gameDate) return null;
 
-  const time = isMidweekDate(gameDate) ? "18:00" : "09:00"; // placeholder, corrected in gamesMapToParsedGames
+  const titleLower = headline.toLowerCase();
+  const isWeds = titleLower.includes("weds") || titleLower.includes("wednesday") || titleLower.includes("wedd");
+  const time = isWeds ? "18:00" : "09:00";
 
   const sender = ld.author?.name ?? "Unknown";
   const text = ld.text ?? "";
@@ -117,18 +117,7 @@ export function gamesMapToParsedGames(map: GamesMap): ParsedGame[] {
       topicTitles: [],
     });
   }
-  const sorted = games.sort((a, b) => a.date.localeCompare(b.date));
-  // Correct midweek times: first 3 per year = 17:30
-  const midweekCountByYear = new Map<number, number>();
-  for (const game of sorted) {
-    if (isMidweekDate(game.date)) {
-      const year = parseInt(game.date.substring(0, 4));
-      const count = midweekCountByYear.get(year) ?? 0;
-      game.time = getGameTime(game.date, count);
-      midweekCountByYear.set(year, count + 1);
-    }
-  }
-  return sorted;
+  return games.sort((a, b) => a.date.localeCompare(b.date));
 }
 
 /** Sleep helper */
@@ -152,8 +141,9 @@ export function deserializeGamesMap(json: string): GamesMap {
   return map;
 }
 
-/** Max consecutive 404s before concluding we've passed the end.
- *  groups.io message IDs are non-contiguous, so single 404s are normal gaps. */
+/** Max consecutive 404s before concluding we've passed the last message.
+ *  Groups.io message IDs are non-contiguous (large gaps exist), so a single
+ *  404 does NOT mean we've reached the end. */
 const MAX_CONSECUTIVE_404S = 50;
 
 /** Run one chunk: fetch up to maxMessages starting from startId, merge into provided map. Returns last id processed and count of game messages. */
@@ -162,12 +152,13 @@ export async function scrapeChunk(
   maxMessages: number,
   intoMap: GamesMap
 ): Promise<{ lastMessageId: number; topicsScraped: number; done: boolean }> {
-  let lastIdAttempted = startId - 1;
   let topicsScraped = 0;
   let consecutive404s = 0;
+  let lastIdAttempted = startId - 1;
 
   for (let i = 0; i < maxMessages; i++) {
     const id = startId + i;
+    lastIdAttempted = id;
     await sleep(RATE_LIMIT_MS);
 
     let html: string;
@@ -178,11 +169,9 @@ export async function scrapeChunk(
       return { lastMessageId: lastIdAttempted, topicsScraped, done: false };
     }
 
-    // Always advance cursor so we don't re-fetch the same IDs
-    lastIdAttempted = id;
-
     if (html === "") {
       consecutive404s++;
+      // Only conclude we've passed the end after many consecutive 404s
       if (consecutive404s >= MAX_CONSECUTIVE_404S) {
         return { lastMessageId: lastIdAttempted, topicsScraped, done: true };
       }
