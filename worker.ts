@@ -1,6 +1,6 @@
 /**
  * Custom worker: wraps OpenNext fetch handler, adds RPC entrypoint for inbound email,
- * and scheduled handler for groups.io API polling.
+ * and scheduled handler for hourly groups.io API reconciliation.
  * Wrangler main should point here so the email worker can call handleEmail via service binding.
  * Type-check with: pnpm exec tsc -p tsconfig.worker.json
  */
@@ -37,7 +37,7 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
     );
   }
 
-  /** Cron trigger: poll groups.io API for new messages and process signups. */
+  /** Hourly reconciliation: poll groups.io API to catch messages the email pipeline missed. */
   async scheduled(_event: ScheduledEvent): Promise<void> {
     const apiKey = this.env.GROUPS_IO_API_KEY;
     if (!apiKey) {
@@ -45,11 +45,12 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
       return;
     }
     try {
+      logger.info({ event: "reconciliation_start" }, "hourly reconciliation sweep starting");
       const result = await pollForNewMessages(this.env.D1_DB, apiKey);
-      logger.info({ event: "poll_scheduled", ...result }, "scheduled poll complete");
+      logger.info({ event: "reconciliation_complete", ...result }, "hourly reconciliation sweep complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
-      logger.error({ event: "poll_scheduled_error", error: message }, "scheduled poll failed");
+      logger.error({ event: "reconciliation_error", error: message }, "hourly reconciliation failed");
     }
   }
 

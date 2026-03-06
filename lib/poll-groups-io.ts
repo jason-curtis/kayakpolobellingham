@@ -1,6 +1,6 @@
 /**
  * Poll groups.io API for new messages, parse signups, and apply to D1.
- * Replaces the Cloudflare Email Worker pipeline with direct API polling.
+ * Used as hourly reconciliation to catch anything the email pipeline misses.
  */
 import { fetchRecentMessages, decodeSnippet, type GroupsIoMessage } from "./groups-io-api";
 import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
