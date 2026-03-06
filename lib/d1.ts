@@ -23,6 +23,22 @@ export async function getGames(database?: D1 | null): Promise<any[]> {
   return results;
 }
 
+export async function getGamesPaginated(
+  page: number,
+  limit: number,
+  database?: D1 | null
+): Promise<{ games: any[]; total: number }> {
+  const d = await db(database);
+  const offset = (page - 1) * limit;
+  const countRow = await d.prepare("SELECT COUNT(*) as count FROM games").first();
+  const total = (countRow as any).count;
+  const { results } = await d
+    .prepare("SELECT * FROM games ORDER BY date DESC LIMIT ? OFFSET ?")
+    .bind(limit, offset)
+    .all();
+  return { games: results as any[], total };
+}
+
 export async function getGameByDate(database: D1 | null | undefined, date: string): Promise<{ id: string } | null> {
   const d = await db(database);
   return d.prepare("SELECT id FROM games WHERE date = ?").bind(date).first() as Promise<{ id: string } | null>;

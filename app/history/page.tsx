@@ -1,6 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react';
+import { Suspense, useEffect, useState } from 'react';
+import { useSearchParams, useRouter } from 'next/navigation';
 
 interface SignupEntry {
   name: string;
@@ -19,6 +20,7 @@ interface Game {
 }
 
 const TIMEZONE = 'America/Los_Angeles';
+const PAGE_SIZE = 20;
 
 function formatDate(dateStr: string) {
   const date = new Date(`${dateStr}T00:00:00`);
@@ -40,17 +42,39 @@ function formatTime(timeStr: string) {
   return `${displayHour}${parseInt(minutes) !== 0 ? ':' + minutes : ''}${ampm}`;
 }
 
-export default function HistoryPage() {
+function HistoryContent() {
+  const searchParams = useSearchParams();
+  const router = useRouter();
+  const currentPage = Math.max(1, parseInt(searchParams.get('page') || '1') || 1);
+
   const [games, setGames] = useState<Game[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch('/api/games')
+    setLoading(true);
+    fetch(`/api/games?page=${currentPage}&limit=${PAGE_SIZE}`)
       .then(res => res.json())
-      .then(data => setGames(data))
+      .then(data => {
+        setGames(data.games);
+        setTotalPages(data.totalPages);
+        setTotal(data.total);
+      })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, []);
+  }, [currentPage]);
+
+  const goToPage = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (page === 1) {
+      params.delete('page');
+    } else {
+      params.set('page', String(page));
+    }
+    const qs = params.toString();
+    router.push(qs ? `/history?${qs}` : '/history');
+  };
 
   if (loading) return <div className="p-8 text-center text-white">Loading...</div>;
 
@@ -59,7 +83,7 @@ export default function HistoryPage() {
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
           <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Game History</h1>
-          <p className="text-blue-100">{games.length} games</p>
+          <p className="text-blue-100">{total} games</p>
         </div>
 
         <div className="space-y-3">
@@ -90,6 +114,28 @@ export default function HistoryPage() {
           })}
         </div>
 
+        {totalPages > 1 && (
+          <div className="flex items-center justify-center gap-4 mt-8">
+            <button
+              onClick={() => goToPage(currentPage - 1)}
+              disabled={currentPage <= 1}
+              className="px-4 py-2 bg-white rounded-lg shadow text-gray-900 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition"
+            >
+              Previous
+            </button>
+            <span className="text-white text-sm">
+              Page {currentPage} of {totalPages}
+            </span>
+            <button
+              onClick={() => goToPage(currentPage + 1)}
+              disabled={currentPage >= totalPages}
+              className="px-4 py-2 bg-white rounded-lg shadow text-gray-900 font-medium disabled:opacity-40 disabled:cursor-not-allowed hover:shadow-md transition"
+            >
+              Next
+            </button>
+          </div>
+        )}
+
         <div className="text-center mt-8 space-x-4">
           <a href="/" className="text-white hover:text-blue-200 underline text-sm">
             Back to Home
@@ -100,5 +146,13 @@ export default function HistoryPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function HistoryPage() {
+  return (
+    <Suspense fallback={<div className="p-8 text-center text-white">Loading...</div>}>
+      <HistoryContent />
+    </Suspense>
   );
 }
