@@ -61,6 +61,10 @@ export default function AdminPortal() {
   const [scrapeMessage, setScrapeMessage] = useState('');
   const [scrapeLatest, setScrapeLatest] = useState<ScrapeLatest | null>(null);
 
+  // Backfill state
+  const [backfillLoading, setBackfillLoading] = useState(false);
+  const [backfillMessage, setBackfillMessage] = useState('');
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
@@ -281,6 +285,26 @@ export default function AdminPortal() {
       }
     } catch (err) {
       setError('Error deleting regular');
+    }
+  };
+
+  const handleBackfillSources = async () => {
+    setBackfillLoading(true);
+    setBackfillMessage('');
+    setError('');
+    try {
+      const res = await fetch('/api/admin/backfill-sources', { method: 'POST' });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data.error ?? 'Backfill failed');
+        return;
+      }
+      const data = await res.json();
+      setBackfillMessage(`Done! ${data.messagesProcessed} messages processed, ${data.signupsUpdated} signups updated, ${data.skipped} skipped.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Backfill failed');
+    } finally {
+      setBackfillLoading(false);
     }
   };
 
@@ -774,6 +798,28 @@ export default function AdminPortal() {
                     {new Date(scrapeLatest.completed_at).toLocaleString()} — last message ID {scrapeLatest.last_message_id}, {scrapeLatest.topics_scraped} topics, {scrapeLatest.games_inserted} games, {scrapeLatest.signups_inserted} signups
                   </div>
                 </div>
+              )}
+            </div>
+
+            <hr className="my-6" />
+
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              Backfill Source Links
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Walk all groups.io messages via API and fill in note + source_url for existing signups that are missing them.
+            </p>
+            <div className="flex flex-col gap-4">
+              <button
+                type="button"
+                onClick={handleBackfillSources}
+                disabled={backfillLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 w-fit"
+              >
+                {backfillLoading ? 'Backfilling…' : 'Backfill Sources'}
+              </button>
+              {backfillMessage && (
+                <p className="text-gray-700">{backfillMessage}</p>
               )}
             </div>
           </div>
