@@ -6,9 +6,10 @@
  */
 /// <reference types="@cloudflare/workers-types" />
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { parseInboundEmail } from "./lib/email-parser";
+import { parseInboundEmail, isGameTopic, extractGameDate } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
 import { pollForNewMessages } from "./lib/poll-groups-io";
+import { llmExtractDate } from "./lib/openrouter";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -26,6 +27,7 @@ interface Env {
   D1_DB: D1Database;
   ASSETS: Fetcher;
   GROUPS_IO_API_KEY: string;
+  OPENROUTER_API_KEY: string;
 }
 
 export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
@@ -46,7 +48,7 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
     }
     try {
       logger.info({ event: "reconciliation_start" }, "hourly reconciliation sweep starting");
-      const result = await pollForNewMessages(this.env.D1_DB, apiKey);
+      const result = await pollForNewMessages(this.env.D1_DB, apiKey, this.env.OPENROUTER_API_KEY);
       logger.info({ event: "reconciliation_complete", ...result }, "hourly reconciliation sweep complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -61,6 +63,22 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         subject: payload.subject,
         textBody: payload.textBody ?? "",
       });
+
+      // LLM fallback: if regex couldn't extract date but topic looks game-related, try LLM
+      if (!result.gameDate && result.isGameTopic && this.env.OPENROUTER_API_KEY) {
+        const llmDate = await llmExtractDate(
+          this.env.OPENROUTER_API_KEY,
+          payload.subject,
+          payload.textBody ?? "",
+        );
+        if (llmDate) {
+          result.gameDate = llmDate;
+          logger.info(
+            { event: "llm_date_fallback", subject: payload.subject, llmDate },
+            "LLM extracted game date after regex failed"
+          );
+        }
+      }
 
       logger.info(
         {

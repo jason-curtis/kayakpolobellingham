@@ -153,6 +153,7 @@ export async function getSignupsForGame(gameId: string, database?: D1 | null) {
   return {
     in: (results as any[]).filter((s) => s.status === "in").map(mapSignup),
     out: (results as any[]).filter((s) => s.status === "out").map(mapSignup),
+    maybe: (results as any[]).filter((s) => s.status === "maybe").map(mapSignup),
   };
 }
 
@@ -165,7 +166,7 @@ export interface SignupSource {
 export async function addSignup(
   gameId: string,
   playerName: string,
-  status: "in" | "out",
+  status: "in" | "out" | "maybe",
   database?: D1 | null,
   source?: SignupSource
 ): Promise<{ success: boolean; results?: any }> {

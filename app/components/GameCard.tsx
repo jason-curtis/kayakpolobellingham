@@ -20,6 +20,7 @@ export interface Game {
   signups: {
     in: SignupEntry[];
     out: SignupEntry[];
+    maybe: SignupEntry[];
   };
   regulars: string[];
 }
@@ -79,7 +80,11 @@ export function getGameStatus(game: Game) {
 }
 
 function signedNames(game: Game) {
-  return new Set([...game.signups.in.map(s => s.name), ...game.signups.out.map(s => s.name)]);
+  return new Set([
+    ...game.signups.in.map(s => s.name),
+    ...game.signups.out.map(s => s.name),
+    ...(game.signups.maybe ?? []).map(s => s.name),
+  ]);
 }
 
 function regularsRemaining(game: Game) {
@@ -89,7 +94,7 @@ function regularsRemaining(game: Game) {
 
 interface GameCardProps {
   game: Game;
-  onSignup?: (gameId: string, playerName: string, status: 'in' | 'out') => Promise<void>;
+  onSignup?: (gameId: string, playerName: string, status: 'in' | 'out' | 'maybe') => Promise<void>;
   playerName?: string;
   onPlayerNameChange?: (name: string) => void;
   isSubmitting?: boolean;
@@ -123,7 +128,7 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
         </h2>
 
         <div className="text-lg font-semibold text-gray-800 mb-4">
-          {game.signups.in.length} in • {game.signups.out.length} out • {regularsRemaining(game)} regulars remaining
+          {game.signups.in.length} in • {game.signups.out.length} out{(game.signups.maybe?.length ?? 0) > 0 ? ` • ${game.signups.maybe.length} maybe` : ''} • {regularsRemaining(game)} regulars remaining
         </div>
 
         {/* Game Status */}
@@ -208,6 +213,25 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
               ) : null}
             </div>
           ))}
+          {(game.signups.maybe ?? []).map((s) => (
+            <div key={s.name} className="flex items-center gap-3">
+              <span className="inline-block w-3 h-3 rounded-full bg-yellow-400" />
+              <span className="text-gray-900 flex-1">
+                {s.name}
+                {s.note && <span className="text-xs text-gray-400 ml-1">— {s.note}</span>}
+              </span>
+              {s.late && <span className="text-xs text-orange-500">(late)</span>}
+              {s.source_url ? (
+                <a href={s.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-600" title="View source message">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" /></svg>
+                </a>
+              ) : s.source_type === 'site' ? (
+                <span className="text-xs text-gray-300" title="Signed up on site">web</span>
+              ) : s.source_type === 'email' ? (
+                <span className="text-xs text-gray-300" title="Via email">email</span>
+              ) : null}
+            </div>
+          ))}
           {game.regulars
             .filter(r => !signedNames(game).has(r))
             .map((regular) => (
@@ -248,7 +272,18 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
                         : 'bg-green-500 text-white hover:bg-green-600'
                     }`}
                   >
-                    ✅ I'm In
+                    I'm In
+                  </button>
+                  <button
+                    onClick={() => onSignup(game.id, playerName, 'maybe')}
+                    disabled={isSubmitting || !playerName.trim()}
+                    className={`flex-1 p-3 rounded font-semibold transition ${
+                      isSubmitting || !playerName.trim()
+                        ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                        : 'bg-yellow-400 text-gray-900 hover:bg-yellow-500'
+                    }`}
+                  >
+                    Maybe
                   </button>
                   <button
                     onClick={() => onSignup(game.id, playerName, 'out')}
@@ -259,7 +294,7 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
                         : 'bg-red-500 text-white hover:bg-red-600'
                     }`}
                   >
-                    ❌ I'm Out
+                    I'm Out
                   </button>
                 </div>
               </>

@@ -8,7 +8,7 @@ export async function POST(
   try {
     const { playerName, status } = await request.json() as any;
 
-    if (!playerName || !['in', 'out'].includes(status)) {
+    if (!playerName || !['in', 'out', 'maybe'].includes(status)) {
       return NextResponse.json(
         { error: 'Invalid request' },
         { status: 400 }

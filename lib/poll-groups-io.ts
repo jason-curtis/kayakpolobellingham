@@ -5,6 +5,7 @@
 import { fetchRecentMessages, decodeSnippet, messageUrl, type GroupsIoMessage } from "./groups-io-api";
 import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
+import { llmExtractDate } from "./openrouter";
 import { logger } from "./logger";
 
 const GROUP_ID = 14099;
@@ -45,6 +46,7 @@ export interface PollResult {
 export async function pollForNewMessages(
   db: D1,
   apiKey: string,
+  openrouterKey?: string,
 ): Promise<PollResult> {
   const cursor = await getCursor(db);
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, FETCH_LIMIT);
@@ -82,7 +84,18 @@ export async function pollForNewMessages(
     const snippet = decodeSnippet(msg.snippet);
     const senderName = resolveSender(msg.name);
     const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-    const gameDate = extractGameDate(subject, msg.created);
+    let gameDate = extractGameDate(subject, msg.created);
+
+    // LLM fallback for date extraction when regex fails
+    if (!gameDate && openrouterKey) {
+      gameDate = await llmExtractDate(openrouterKey, subject, snippet);
+      if (gameDate) {
+        logger.info(
+          { event: "poll_llm_date", msgNum: msg.msg_num, subject, llmDate: gameDate },
+          "LLM extracted date after regex failed"
+        );
+      }
+    }
 
     logger.info(
       {

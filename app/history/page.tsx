@@ -16,6 +16,7 @@ interface Game {
   signups: {
     in: SignupEntry[];
     out: SignupEntry[];
+    maybe: SignupEntry[];
   };
 }
 
@@ -90,6 +91,7 @@ function HistoryContent() {
           {games.map((game) => {
             const inCount = game.signups.in.length;
             const outCount = game.signups.out.length;
+            const maybeCount = (game.signups.maybe ?? []).length;
             const gameOn = inCount >= 6;
             return (
               <a key={game.id} href={`/games/${game.id}`} className="block bg-white rounded-lg shadow p-4 hover:shadow-md transition">
@@ -100,7 +102,7 @@ function HistoryContent() {
                   </div>
                   <div className="text-right">
                     <div className={`font-semibold ${gameOn ? 'text-green-600' : 'text-gray-400'}`}>
-                      {inCount} in{outCount > 0 ? ` / ${outCount} out` : ''}
+                      {inCount} in{outCount > 0 ? ` / ${outCount} out` : ''}{maybeCount > 0 ? ` / ${maybeCount} maybe` : ''}
                     </div>
                     {inCount > 0 && (
                       <div className="text-xs text-gray-500 mt-1 max-w-[200px] md:max-w-[400px] truncate">

@@ -61,7 +61,7 @@ export default function Home() {
     localStorage.setItem('kayakpolo_player_name', name);
   };
 
-  const handleSignup = async (gameId: string, name: string, status: 'in' | 'out') => {
+  const handleSignup = async (gameId: string, name: string, status: 'in' | 'out' | 'maybe') => {
     if (!name.trim()) {
       setError('Please enter your name');
       return;

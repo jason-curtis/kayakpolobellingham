@@ -3,6 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
 import { fetchAllMessages, decodeSnippet, messageUrl } from "@/lib/groups-io-api";
 import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "@/lib/email-parser";
+import { llmExtractDate } from "@/lib/openrouter";
 
 const GROUP_ID = 14099;
 
@@ -12,7 +13,9 @@ export async function POST(request: NextRequest) {
 
   try {
     const { env } = await getCloudflareContext();
-    const { D1_DB: db, GROUPS_IO_API_KEY: apiKey } = env as { D1_DB: any; GROUPS_IO_API_KEY: string };
+    const { D1_DB: db, GROUPS_IO_API_KEY: apiKey, OPENROUTER_API_KEY: openrouterKey } = env as {
+      D1_DB: any; GROUPS_IO_API_KEY: string; OPENROUTER_API_KEY?: string;
+    };
 
     if (!apiKey) {
       return NextResponse.json({ error: "GROUPS_IO_API_KEY not configured" }, { status: 500 });
@@ -29,7 +32,12 @@ export async function POST(request: NextRequest) {
       const snippet = decodeSnippet(msg.snippet);
       const senderName = resolveSender(msg.name);
       const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-      const gameDate = extractGameDate(msg.subject, msg.created);
+      let gameDate = extractGameDate(msg.subject, msg.created);
+
+      // LLM fallback for date extraction
+      if (!gameDate && openrouterKey) {
+        gameDate = await llmExtractDate(openrouterKey, msg.subject, snippet);
+      }
 
       if (!gameDate || signups.length === 0) continue;
 

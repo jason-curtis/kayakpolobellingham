@@ -5,9 +5,11 @@
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
+export type SignupStatus = "in" | "out" | "maybe";
+
 export interface Signup {
   name: string;
-  status: "in" | "out";
+  status: SignupStatus;
 }
 
 export interface EmailParseResult {
@@ -101,7 +103,7 @@ function titleCase(s: string): string {
 }
 
 const STOP_WORDS = new Set([
-  "the", "is", "in", "out", "on", "at", "for", "we", "will", "be", "there", "plus", "maybe",
+  "the", "is", "in", "out", "on", "at", "for", "we", "will", "be", "there", "plus",
   "arriving", "from", "to", "joined", "by", "who", "whoever", "else", "also", "too", "as", "an", "a", "of",
   "he", "she", "his", "her", "our", "with", "but", "not", "no", "game", "new", "keep", "posting", "still",
   "well", "if", "so", "ignore", "says", "playing", "their", "about", "posted", "sign", "this", "that",
@@ -184,31 +186,36 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
     }
+    // Explicit self-referencing maybe patterns (before name-based patterns)
+    if (/\bi'?m\s+a\s+maybe\b/.test(lower) || /\bi?\s*might\b/.test(lower) || /\btentative\b/.test(lower) || /\bunsure\b/.test(lower)) {
+      if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
+      continue;
+    }
 
-    const andPattern = lower.match(/^([a-z][a-z'\-]{1,15})\s+and\s+([a-z][a-z'\-]{1,15})\s+(?:are\s+)?(in|out)\b/);
+    const andPattern = lower.match(/^([a-z][a-z'\-]{1,15})\s+and\s+([a-z][a-z'\-]{1,15})\s+(?:are\s+)?(in|out|maybe)\b/);
     if (andPattern) {
       const n1 = resolveN(andPattern[1]);
       const n2 = resolveN(andPattern[2]);
-      const st = andPattern[3] as "in" | "out";
+      const st = andPattern[3] as SignupStatus;
       if (n1 && !isStopWord(n1.toLowerCase())) results.push({ name: n1, status: st });
       if (n2 && !isStopWord(n2.toLowerCase())) results.push({ name: n2, status: st });
       continue;
     }
 
-    const nameInOut = lower.match(/^([a-z][a-z'\-]{1,15})\s+(in|out)\b/);
+    const nameInOut = lower.match(/^([a-z][a-z'\-]{1,15})\s+(in|out|maybe)\b/);
     if (nameInOut) {
       const name = resolveN(nameInOut[1]);
       if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
-        results.push({ name, status: nameInOut[2] as "in" | "out" });
+        results.push({ name, status: nameInOut[2] as SignupStatus });
         continue;
       }
     }
 
-    const possessiveIn = lower.match(/^([a-z][a-z'\-]{1,15})(?:'s)\s+(in|out)\b/);
+    const possessiveIn = lower.match(/^([a-z][a-z'\-]{1,15})(?:'s)\s+(in|out|maybe)\b/);
     if (possessiveIn) {
       const name = resolveN(possessiveIn[1]);
       if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
-        results.push({ name, status: possessiveIn[2] as "in" | "out" });
+        results.push({ name, status: possessiveIn[2] as SignupStatus });
         continue;
       }
     }
@@ -225,6 +232,11 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
     }
+    // Standalone "maybe" / "depends" — must come after name-based patterns
+    if (/^maybe[!.]?\s*$/.test(lower) || /\bdepends\b/.test(lower)) {
+      if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
+      continue;
+    }
   }
   return results;
 }
@@ -238,6 +250,14 @@ const MONTHS: Record<string, number> = {
 };
 
 const DAY_NAMES = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
+
+/** Day-of-week aliases for ordinal matching. */
+const DAY_ALIASES: Record<string, string> = {
+  sun: "sunday", mon: "monday", tue: "tuesday", tues: "tuesday",
+  wed: "wednesday", weds: "wednesday", wedd: "wednesday",
+  thu: "thursday", thur: "thursday", thurs: "thursday",
+  fri: "friday", sat: "saturday",
+};
 
 /**
  * Parse game date from subject (single email).
@@ -276,6 +296,26 @@ export function extractGameDate(subject: string, referenceDate?: string): string
       const day = parseInt(m[2]);
       const year = m[3] ? parseInt(m[3]) : fallbackYear;
       if (month && day >= 1 && day <= 31) result = formatDate(year, month, day);
+    }
+  }
+
+  // Day name + ordinal: "Wednesday the 11th", "next Sunday the 5th"
+  if (!result) {
+    const allDayNames = [...DAY_NAMES, ...Object.keys(DAY_ALIASES)].join("|");
+    const ordRe = new RegExp(`(?:next|this)?\\s*(?:${allDayNames})\\s+(?:the\\s+)?(\\d{1,2})(?:st|nd|rd|th)`);
+    m = t.match(ordRe);
+    if (m) {
+      const day = parseInt(m[1]);
+      if (day >= 1 && day <= 31) {
+        const ref = refDate ?? new Date();
+        let month = ref.getMonth() + 1; // 1-indexed
+        let year = fallbackYear;
+        if (day < ref.getDate()) {
+          month++;
+          if (month > 12) { month = 1; year++; }
+        }
+        result = formatDate(year, month, day);
+      }
     }
   }
 
@@ -388,9 +428,13 @@ export function isGameTopic(title: string): boolean {
   if (/\bneed \d+ more\b/.test(t) || /\bone more\b/.test(t) && /\bplayer\b/.test(t)) return true;
   if (/\bone more needed\b/.test(t) || /\bmore needed\b/.test(t)) return true;
   if (/\bgame cancelled\b/.test(t) || /\bgame canceled\b/.test(t)) return true;
+  if (/\bseason opener\b/.test(t) || /\bfirst game\b/.test(t) || /\blast game\b/.test(t)) return true;
   const dayPattern = /\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|weds?|wedd?|thurs?|tues?|sat|sun|mon|fri)\b/;
   const datePattern = /\b(\d{1,2}\/\d{1,2}|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)\w*\s+\d{1,2})\b/;
-  return dayPattern.test(t) && datePattern.test(t);
+  if (dayPattern.test(t) && datePattern.test(t)) return true;
+  // Day name + ordinal (e.g., "next Wednesday the 11th")
+  if (dayPattern.test(t) && /\b\d{1,2}(?:st|nd|rd|th)\b/.test(t)) return true;
+  return false;
 }
 
 // ── Single email entry (worker) ──────────────────────────────────────────────

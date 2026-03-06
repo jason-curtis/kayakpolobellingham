@@ -79,6 +79,16 @@ describe("parseSignupsFromMessage", () => {
     const got = parseSignupsFromMessage("Dor in", "Bob");
     expect(got).toEqual([{ name: "Dor", status: "in" }]);
   });
+  it("parses maybe status from body", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("maybe", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "maybe" }]);
+    expect(parseSignupsFromMessage("I might make it", "Dorothy Burke", withAliases)).toEqual([{ name: "Dorothy", status: "maybe" }]);
+    expect(parseSignupsFromMessage("depends on work", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "maybe" }]);
+  });
+  it("parses Name maybe", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("gary maybe", "x", withAliases)).toEqual([{ name: "Gary", status: "maybe" }]);
+  });
 });
 
 describe("extractGameDate", () => {
@@ -105,6 +115,14 @@ describe("extractGameDate", () => {
   it("behaves as before with no referenceDate", () => {
     expect(extractGameDate("Sunday 3/1/26")).toBe("2026-03-01");
   });
+  it("parses day name + ordinal like 'Wednesday the 11th'", () => {
+    const result = extractGameDate("Next Wednesday the 11th");
+    expect(result).toMatch(/^\d{4}-\d{2}-11$/);
+  });
+  it("parses 'Sunday the 5th'", () => {
+    const result = extractGameDate("Sunday the 5th");
+    expect(result).toMatch(/^\d{4}-\d{2}-05$/);
+  });
 });
 
 describe("isGameTopic", () => {
@@ -112,6 +130,13 @@ describe("isGameTopic", () => {
     expect(isGameTopic("Post in or out for Sunday 3/2")).toBe(true);
     expect(isGameTopic("Game on!")).toBe(true);
     expect(isGameTopic("No game this week")).toBe(true);
+  });
+  it("returns true for day + ordinal subjects", () => {
+    expect(isGameTopic("Next Wednesday the 11th")).toBe(true);
+    expect(isGameTopic("Sunday the 5th game")).toBe(true);
+  });
+  it("returns true for season opener", () => {
+    expect(isGameTopic("2026 Wednesday Night Season Opener")).toBe(true);
   });
   it("returns false for unrelated", () => {
     expect(isGameTopic("Random chat")).toBe(false);
