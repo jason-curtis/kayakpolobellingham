@@ -2,7 +2,7 @@
  * Poll groups.io API for new messages, parse signups, and apply to D1.
  * Used as hourly reconciliation to catch anything the email pipeline misses.
  */
-import { fetchRecentMessages, decodeSnippet, type GroupsIoMessage } from "./groups-io-api";
+import { fetchRecentMessages, decodeSnippet, messageUrl, type GroupsIoMessage } from "./groups-io-api";
 import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
 import { logger } from "./logger";
@@ -107,7 +107,7 @@ export async function pollForNewMessages(
       gameDate,
       isGameTopic: true,
       rawBody: snippet,
-    });
+    }, messageUrl(msg.msg_num));
 
     totalSignups += result.signupsApplied;
     if (result.gameId && !gamesAffected.includes(result.gameId)) {

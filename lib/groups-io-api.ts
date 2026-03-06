@@ -49,6 +49,51 @@ export async function fetchRecentMessages(
   return json.data ?? [];
 }
 
+/** Message permalink for the kayakpolobellingham group. */
+export function messageUrl(msgNum: number): string {
+  return `https://groups.io/g/kayakpolobellingham/message/${msgNum}`;
+}
+
+/** Fetch all messages from the group, paginating through the full history. Oldest-first. */
+export async function fetchAllMessages(
+  apiKey: string,
+  groupId: number,
+  onPage?: (page: number, total: number) => void,
+): Promise<GroupsIoMessage[]> {
+  const all: GroupsIoMessage[] = [];
+  let pageToken: number | undefined;
+  let page = 0;
+
+  while (true) {
+    const url = new URL(`${API_BASE}/getmessages`);
+    url.searchParams.set("group_id", String(groupId));
+    url.searchParams.set("limit", "100");
+    url.searchParams.set("sort_field", "created");
+    url.searchParams.set("sort_dir", "asc");
+    if (pageToken !== undefined) {
+      url.searchParams.set("page_token", String(pageToken));
+    }
+
+    const res = await fetch(url.toString(), {
+      headers: { Authorization: `Bearer ${apiKey}` },
+    });
+    if (!res.ok) {
+      throw new Error(`groups.io API error: ${res.status} ${res.statusText}`);
+    }
+
+    const json = (await res.json()) as MessagesResponse;
+    const data = json.data ?? [];
+    all.push(...data);
+    page++;
+    onPage?.(page, json.total_count);
+
+    if (!json.has_more || data.length === 0) break;
+    pageToken = json.next_page_token;
+  }
+
+  return all;
+}
+
 /** Decode common HTML entities in snippet text. */
 export function decodeSnippet(snippet: string): string {
   return snippet
