@@ -6,6 +6,9 @@ import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/co
 export interface SignupEntry {
   name: string;
   late: boolean;
+  note?: string | null;
+  source_url?: string | null;
+  source_type?: string | null;
 }
 
 export interface Game {
@@ -170,15 +173,39 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
           {game.signups.in.map((s) => (
             <div key={s.name} className="flex items-center gap-3">
               <span className="inline-block w-3 h-3 rounded-full bg-green-500" />
-              <span className="text-gray-900 flex-1">{s.name}</span>
+              <span className="text-gray-900 flex-1">
+                {s.name}
+                {s.note && <span className="text-xs text-gray-400 ml-1">— {s.note}</span>}
+              </span>
               {s.late && <span className="text-xs text-orange-500">(late)</span>}
+              {s.source_url ? (
+                <a href={s.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-600" title="View source message">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" /></svg>
+                </a>
+              ) : s.source_type === 'site' ? (
+                <span className="text-xs text-gray-300" title="Signed up on site">web</span>
+              ) : s.source_type === 'email' ? (
+                <span className="text-xs text-gray-300" title="Via email">email</span>
+              ) : null}
             </div>
           ))}
           {game.signups.out.map((s) => (
             <div key={s.name} className="flex items-center gap-3">
               <span className="inline-block w-3 h-3 rounded-full bg-red-500" />
-              <span className="text-gray-900 flex-1">{s.name}</span>
+              <span className="text-gray-900 flex-1">
+                {s.name}
+                {s.note && <span className="text-xs text-gray-400 ml-1">— {s.note}</span>}
+              </span>
               {s.late && <span className="text-xs text-orange-500">(late)</span>}
+              {s.source_url ? (
+                <a href={s.source_url} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-600" title="View source message">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.172 13.828a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.102 1.101" /></svg>
+                </a>
+              ) : s.source_type === 'site' ? (
+                <span className="text-xs text-gray-300" title="Signed up on site">web</span>
+              ) : s.source_type === 'email' ? (
+                <span className="text-xs text-gray-300" title="Via email">email</span>
+              ) : null}
             </div>
           ))}
           {game.regulars

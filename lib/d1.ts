@@ -121,17 +121,31 @@ export async function resolvePlayerName(inputName: string, database?: D1 | null)
 export async function getSignupsForGame(gameId: string, database?: D1 | null) {
   const d = await db(database);
   const { results } = await d.prepare("SELECT * FROM signups WHERE game_id = ?").bind(gameId).all();
+  const mapSignup = (s: any) => ({
+    name: s.player_name,
+    late: !!s.late,
+    note: s.note ?? null,
+    source_url: s.source_url ?? null,
+    source_type: s.source_type ?? null,
+  });
   return {
-    in: (results as any[]).filter((s) => s.status === "in").map((s) => ({ name: s.player_name, late: !!s.late })),
-    out: (results as any[]).filter((s) => s.status === "out").map((s) => ({ name: s.player_name, late: !!s.late })),
+    in: (results as any[]).filter((s) => s.status === "in").map(mapSignup),
+    out: (results as any[]).filter((s) => s.status === "out").map(mapSignup),
   };
+}
+
+export interface SignupSource {
+  note?: string | null;
+  source_url?: string | null;
+  source_type?: "email" | "site" | null;
 }
 
 export async function addSignup(
   gameId: string,
   playerName: string,
   status: "in" | "out",
-  database?: D1 | null
+  database?: D1 | null,
+  source?: SignupSource
 ): Promise<{ success: boolean; results?: any }> {
   const d = await db(database);
   const now = new Date().toISOString();
@@ -150,6 +164,9 @@ export async function addSignup(
   }
 
   const isLate = game?.signup_deadline ? new Date(now) > new Date(game.signup_deadline) : false;
+  const note = source?.note ?? null;
+  const sourceUrl = source?.source_url ?? null;
+  const sourceType = source?.source_type ?? null;
   const existing = await d
     .prepare("SELECT id FROM signups WHERE game_id = ? AND player_name = ?")
     .bind(gameId, resolvedName)
@@ -158,18 +175,18 @@ export async function addSignup(
   if (existing) {
     const { results } = await d
       .prepare(
-        "UPDATE signups SET status = ?, late = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *"
+        "UPDATE signups SET status = ?, late = ?, note = ?, source_url = ?, source_type = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *"
       )
-      .bind(status, isLate ? 1 : 0, now, gameId, resolvedName)
+      .bind(status, isLate ? 1 : 0, note, sourceUrl, sourceType, now, gameId, resolvedName)
       .all();
     return { success: true, results };
   }
   const id = `sig-${Date.now()}`;
   const { results } = await d
     .prepare(
-      "INSERT INTO signups (id, game_id, player_name, status, late, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *"
+      "INSERT INTO signups (id, game_id, player_name, status, late, note, source_url, source_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
     )
-    .bind(id, gameId, resolvedName, status, isLate ? 1 : 0, now, now)
+    .bind(id, gameId, resolvedName, status, isLate ? 1 : 0, note, sourceUrl, sourceType, now, now)
     .all();
   return { success: true, results };
 }

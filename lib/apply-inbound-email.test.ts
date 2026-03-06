@@ -59,8 +59,16 @@ describe("applyInboundEmail", () => {
     expect(d1.getGameByDate).toHaveBeenCalledWith(mockDb, "2026-03-01");
     expect(d1.createGame).not.toHaveBeenCalled();
     expect(d1.addSignup).toHaveBeenCalledTimes(2);
-    expect(d1.addSignup).toHaveBeenNthCalledWith(1, "game-123", "Jason", "in", mockDb);
-    expect(d1.addSignup).toHaveBeenNthCalledWith(2, "game-123", "Dorothy", "out", mockDb);
+    expect(d1.addSignup).toHaveBeenNthCalledWith(1, "game-123", "Jason", "in", mockDb, {
+      note: "Jason in, Dorothy out",
+      source_url: null,
+      source_type: "email",
+    });
+    expect(d1.addSignup).toHaveBeenNthCalledWith(2, "game-123", "Dorothy", "out", mockDb, {
+      note: "Jason in, Dorothy out",
+      source_url: null,
+      source_type: "email",
+    });
     expect(out).toEqual({ gameId: "game-123", signupsApplied: 2 });
   });
 
@@ -80,7 +88,11 @@ describe("applyInboundEmail", () => {
 
     expect(d1.getGameByDate).toHaveBeenCalledWith(mockDb, "2026-03-01");
     expect(d1.createGame).toHaveBeenCalledWith("2026-03-01", undefined, undefined, mockDb);
-    expect(d1.addSignup).toHaveBeenCalledWith("game-new", "Gary", "in", mockDb);
+    expect(d1.addSignup).toHaveBeenCalledWith("game-new", "Gary", "in", mockDb, {
+      note: "I'm in",
+      source_url: null,
+      source_type: "email",
+    });
     expect(out).toEqual({ gameId: "game-new", signupsApplied: 1 });
   });
 });

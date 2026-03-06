@@ -12,7 +12,8 @@ import {
 /** Apply parsed inbound email to D1: ensure game exists for date, then upsert each signup. */
 export async function applyInboundEmail(
   database: Parameters<typeof getGameByDate>[0],
-  result: EmailParseResult
+  result: EmailParseResult,
+  sourceUrl?: string | null
 ): Promise<{ gameId: string | null; signupsApplied: number }> {
   if (!result.gameDate || result.signups.length === 0) {
     return { gameId: null, signupsApplied: 0 };
@@ -25,8 +26,15 @@ export async function applyInboundEmail(
     game = { id: created.id };
   }
 
+  // Truncate rawBody for note (keep first 200 chars)
+  const note = result.rawBody ? result.rawBody.slice(0, 200) : null;
+
   for (const signup of result.signups) {
-    await addSignup(game!.id, signup.name, signup.status, database);
+    await addSignup(game!.id, signup.name, signup.status, database, {
+      note,
+      source_url: sourceUrl ?? null,
+      source_type: "email",
+    });
   }
 
   return { gameId: game!.id, signupsApplied: result.signups.length };

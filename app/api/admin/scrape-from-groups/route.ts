@@ -42,9 +42,9 @@ async function writeGamesAndSignups(db: any, games: ReturnType<typeof gamesMapTo
       const id = crypto.randomUUID();
       await db
         .prepare(
-          'INSERT OR IGNORE INTO signups (id, game_id, player_name, status, late, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)'
+          'INSERT OR IGNORE INTO signups (id, game_id, player_name, status, late, note, source_url, source_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
         )
-        .bind(id, gameId, player.name, player.status, 0, now, now)
+        .bind(id, gameId, player.name, player.status, 0, null, null, 'email', now, now)
         .run();
       signupsInserted++;
     }

@@ -15,7 +15,7 @@ export async function POST(
       );
     }
 
-    const result = await addSignup(params.id, playerName, status);
+    const result = await addSignup(params.id, playerName, status, null, { source_type: 'site' });
     return NextResponse.json({ success: true, data: result.results?.[0] });
   } catch (error: any) {
     console.error('Signup error:', error);
