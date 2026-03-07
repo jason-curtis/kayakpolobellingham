@@ -29,20 +29,12 @@ Visit [http://localhost:3000/admin](http://localhost:3000/admin)
 
 ## Deployment
 
-### Cloudflare Workers
+Deploys automatically when you push to `main`. Cloudflare picks up the push via GitHub integration — **never run `wrangler deploy` manually**.
+
+### Initial Setup (one-time)
 
 ```bash
-# Create D1 database
 wrangler d1 create kayakpolo
-
-# Deploy
-npm run deploy
-```
-
-### GitHub Pages (Alternative)
-
-```bash
-npm run build
 ```
 
 ## Tech Stack
