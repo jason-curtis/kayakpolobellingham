@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { Suspense, useCallback, useEffect, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 
 interface Game {
   id: string;
@@ -42,19 +42,49 @@ interface ScrapeLatest {
   signups_inserted: number;
 }
 
-export default function AdminPortal() {
+const VALID_TABS: Tab[] = ['games', 'regulars', 'scrape', 'debug'];
+
+function AdminContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [authChecked, setAuthChecked] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<Tab>('games');
+
+  // Read initial state from URL
+  const initialTab = VALID_TABS.includes(searchParams.get('tab') as Tab)
+    ? (searchParams.get('tab') as Tab)
+    : 'games';
+  const [tab, setTabState] = useState<Tab>(initialTab);
   const [action, setAction] = useState<Action>('list');
 
-  // Games state
+  // Update URL when state changes
+  const updateUrl = useCallback((params: Record<string, string | null>) => {
+    const next = new URLSearchParams(searchParams.toString());
+    for (const [key, value] of Object.entries(params)) {
+      if (value === null || value === '') {
+        next.delete(key);
+      } else {
+        next.set(key, value);
+      }
+    }
+    const qs = next.toString();
+    router.replace(qs ? `/admin?${qs}` : '/admin', { scroll: false });
+  }, [router, searchParams]);
+
+  const setTab = useCallback((t: Tab) => {
+    setTabState(t);
+    // Clear tab-specific params when switching tabs, keep tab
+    updateUrl({ tab: t === 'games' ? null : t, url: null, page: null });
+  }, [updateUrl]);
+
+  // Games state — read initial page from URL
   const [games, setGames] = useState<Game[]>([]);
   const [gamesLoading, setGamesLoading] = useState(false);
-  const [gamesPage, setGamesPage] = useState(1);
+  const [gamesPage, setGamesPage] = useState(
+    Math.max(1, parseInt(searchParams.get('page') || '1') || 1)
+  );
   const [gamesTotalPages, setGamesTotalPages] = useState(1);
   const [editingGame, setEditingGame] = useState<Game | null>(null);
   const [newGame, setNewGame] = useState({
@@ -82,12 +112,14 @@ export default function AdminPortal() {
         if (res.ok) {
           setIsLoggedIn(true);
           setRegulars(await res.json());
-          fetchGames();
+          fetchGames(gamesPage);
+          if (initialTab === 'scrape') fetchScrapeStatus();
         }
       } catch {}
       setAuthChecked(true);
     };
     checkAuth();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Scrape state
@@ -99,10 +131,14 @@ export default function AdminPortal() {
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillMessage, setBackfillMessage] = useState('');
 
-  // Debug state
-  const [debugUrl, setDebugUrl] = useState('');
+  // Debug state — read initial URL from search params
+  const [debugUrl, setDebugUrlState] = useState(searchParams.get('url') ?? '');
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState<any>(null);
+
+  const setDebugUrl = useCallback((url: string) => {
+    setDebugUrlState(url);
+  }, []);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -141,6 +177,11 @@ export default function AdminPortal() {
     } finally {
       setGamesLoading(false);
     }
+  };
+
+  const goToGamesPage = (page: number) => {
+    fetchGames(page);
+    updateUrl({ page: page > 1 ? String(page) : null });
   };
 
   const fetchRegulars = async () => {
@@ -372,6 +413,8 @@ export default function AdminPortal() {
     setDebugLoading(true);
     setDebugResult(null);
     setError('');
+    // Save URL to address bar so it's shareable/bookmarkable
+    updateUrl({ tab: 'debug', url: debugUrl.trim() });
     try {
       const res = await fetch('/api/admin/debug-message', {
         method: 'POST',
@@ -573,7 +616,7 @@ export default function AdminPortal() {
                       {gamesTotalPages > 1 && (
                         <div className="flex items-center justify-center gap-2 mt-4">
                           <button
-                            onClick={() => fetchGames(gamesPage - 1)}
+                            onClick={() => goToGamesPage(gamesPage - 1)}
                             disabled={gamesPage <= 1}
                             className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
                           >
@@ -583,7 +626,7 @@ export default function AdminPortal() {
                             Page {gamesPage} of {gamesTotalPages}
                           </span>
                           <button
-                            onClick={() => fetchGames(gamesPage + 1)}
+                            onClick={() => goToGamesPage(gamesPage + 1)}
                             disabled={gamesPage >= gamesTotalPages}
                             className="px-3 py-1 bg-gray-200 text-gray-700 rounded text-sm hover:bg-gray-300 disabled:opacity-40"
                           >
@@ -1053,5 +1096,13 @@ export default function AdminPortal() {
         )}
       </div>
     </div>
+  );
+}
+
+export default function AdminPortal() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4"><div className="text-white text-lg">Loading...</div></div>}>
+      <AdminContent />
+    </Suspense>
   );
 }
