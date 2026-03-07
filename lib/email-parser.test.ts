@@ -50,6 +50,10 @@ describe("stripQuotedText", () => {
   it("stops at On ... wrote:", () => {
     expect(stripQuotedText("yes\n\nOn Mon, Bob wrote:\n>")).toBe("yes\n");
   });
+  it("stops at multi-line Gmail quoted reply", () => {
+    const body = "Maybe\n\nOn Sat, Mar 7, 2026, 07:48 Dorothy Burke via groups.io <dorothy_burke=\ncomcast.net@groups.io> wrote:\n> I'm in";
+    expect(stripQuotedText(body)).toBe("Maybe");
+  });
 });
 
 describe("parseSignupsFromMessage", () => {

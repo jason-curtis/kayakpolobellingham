@@ -156,7 +156,14 @@ export function stripQuotedText(body: string): string {
     if (/^(from|sent|to|subject|date):/i.test(line.trim())) continue;
     kept.push(line);
   }
-  return kept.join("\n");
+
+  // Second pass: catch multi-line "On <date> ... wrote:" (Gmail wraps long sender names)
+  const joined = kept.join("\n");
+  const multiLineQuote = joined.search(/^On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b.+\d{4}/m);
+  if (multiLineQuote !== -1) {
+    return joined.slice(0, multiLineQuote).trimEnd();
+  }
+  return joined;
 }
 
 // ── Signup line parsing ─────────────────────────────────────────────────────

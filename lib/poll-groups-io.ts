@@ -114,17 +114,24 @@ export async function pollForNewMessages(
 
     if (signups.length === 0 || !gameDate) continue;
 
-    const result = await applyInboundEmail(db, {
-      senderName,
-      signups,
-      gameDate,
-      isGameTopic: true,
-      rawBody: snippet,
-    }, messageUrl(msg.msg_num), msg.created);
+    try {
+      const result = await applyInboundEmail(db, {
+        senderName,
+        signups,
+        gameDate,
+        isGameTopic: true,
+        rawBody: snippet,
+      }, messageUrl(msg.msg_num), msg.created);
 
-    totalSignups += result.signupsApplied;
-    if (result.gameId && !gamesAffected.includes(result.gameId)) {
-      gamesAffected.push(result.gameId);
+      totalSignups += result.signupsApplied;
+      if (result.gameId && !gamesAffected.includes(result.gameId)) {
+        gamesAffected.push(result.gameId);
+      }
+    } catch (err) {
+      logger.warn(
+        { event: "poll_apply_error", msgNum: msg.msg_num, subject, error: String(err) },
+        "failed to apply message, skipping"
+      );
     }
   }
 
