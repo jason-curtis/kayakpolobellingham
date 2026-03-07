@@ -13,7 +13,8 @@ import {
 export async function applyInboundEmail(
   database: Parameters<typeof getGameByDate>[0],
   result: EmailParseResult,
-  sourceUrl?: string | null
+  sourceUrl?: string | null,
+  sourceAt?: string | null,
 ): Promise<{ gameId: string | null; signupsApplied: number }> {
   if (!result.gameDate || result.signups.length === 0) {
     return { gameId: null, signupsApplied: 0 };
@@ -34,6 +35,7 @@ export async function applyInboundEmail(
       note,
       source_url: sourceUrl ?? null,
       source_type: "email",
+      source_at: sourceAt ?? null,
     });
   }
 

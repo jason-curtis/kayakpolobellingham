@@ -19,6 +19,7 @@ CREATE TABLE IF NOT EXISTS signups (
   note TEXT,
   source_url TEXT,
   source_type TEXT,
+  source_at TEXT,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
   FOREIGN KEY (game_id) REFERENCES games(id),

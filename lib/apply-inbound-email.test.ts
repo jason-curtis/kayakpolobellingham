@@ -63,11 +63,13 @@ describe("applyInboundEmail", () => {
       note: "Jason in, Dorothy out",
       source_url: null,
       source_type: "email",
+      source_at: null,
     });
     expect(d1.addSignup).toHaveBeenNthCalledWith(2, "game-123", "Dorothy", "out", mockDb, {
       note: "Jason in, Dorothy out",
       source_url: null,
       source_type: "email",
+      source_at: null,
     });
     expect(out).toEqual({ gameId: "game-123", signupsApplied: 2 });
   });
@@ -92,6 +94,7 @@ describe("applyInboundEmail", () => {
       note: "I'm in",
       source_url: null,
       source_type: "email",
+      source_at: null,
     });
     expect(out).toEqual({ gameId: "game-new", signupsApplied: 1 });
   });

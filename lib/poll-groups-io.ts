@@ -120,7 +120,7 @@ export async function pollForNewMessages(
       gameDate,
       isGameTopic: true,
       rawBody: snippet,
-    }, messageUrl(msg.msg_num));
+    }, messageUrl(msg.msg_num), msg.created);
 
     totalSignups += result.signupsApplied;
     if (result.gameId && !gamesAffected.includes(result.gameId)) {

@@ -161,6 +161,7 @@ export interface SignupSource {
   note?: string | null;
   source_url?: string | null;
   source_type?: "email" | "site" | null;
+  source_at?: string | null;
 }
 
 export async function addSignup(
@@ -190,6 +191,7 @@ export async function addSignup(
   const note = source?.note ?? null;
   const sourceUrl = source?.source_url ?? null;
   const sourceType = source?.source_type ?? null;
+  const sourceAt = source?.source_at ?? now;
   const existing = await d
     .prepare("SELECT id FROM signups WHERE game_id = ? AND player_name = ?")
     .bind(gameId, resolvedName)
@@ -198,18 +200,18 @@ export async function addSignup(
   if (existing) {
     const { results } = await d
       .prepare(
-        "UPDATE signups SET status = ?, late = ?, note = ?, source_url = ?, source_type = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *"
+        "UPDATE signups SET status = ?, late = ?, note = ?, source_url = ?, source_type = ?, source_at = ?, updated_at = ? WHERE game_id = ? AND player_name = ? RETURNING *"
       )
-      .bind(status, isLate ? 1 : 0, note, sourceUrl, sourceType, now, gameId, resolvedName)
+      .bind(status, isLate ? 1 : 0, note, sourceUrl, sourceType, sourceAt, now, gameId, resolvedName)
       .all();
     return { success: true, results };
   }
   const id = `sig-${Date.now()}`;
   const { results } = await d
     .prepare(
-      "INSERT INTO signups (id, game_id, player_name, status, late, note, source_url, source_type, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
+      "INSERT INTO signups (id, game_id, player_name, status, late, note, source_url, source_type, source_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) RETURNING *"
     )
-    .bind(id, gameId, resolvedName, status, isLate ? 1 : 0, note, sourceUrl, sourceType, now, now)
+    .bind(id, gameId, resolvedName, status, isLate ? 1 : 0, note, sourceUrl, sourceType, sourceAt, now, now)
     .all();
   return { success: true, results };
 }
