@@ -184,7 +184,7 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
           </p>
         )}
         {hasGameStarted(game) && (
-          <p className="text-sm text-gray-500 text-center mt-3">Game in progress</p>
+          <p className="text-sm text-gray-500 text-center mt-3">Game started · signups closed</p>
         )}
       </div>
 
