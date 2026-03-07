@@ -21,6 +21,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "GROUPS_IO_API_KEY not configured" }, { status: 500 });
     }
 
+    // Clear previous backfill data so stale matches don't persist
+    await db
+      .prepare("UPDATE signups SET note = NULL, source_url = NULL, source_type = NULL WHERE source_type = 'email'")
+      .run();
+
     const messages = await fetchAllMessages(apiKey, GROUP_ID);
 
     let updated = 0;
@@ -46,7 +51,6 @@ export async function POST(request: NextRequest) {
 
       for (const signup of signups) {
         const resolved = resolveName(signup.name);
-        // Find matching signup row by game date + player name
         const game = await db
           .prepare("SELECT id FROM games WHERE date = ?")
           .bind(gameDate)
@@ -54,11 +58,13 @@ export async function POST(request: NextRequest) {
 
         if (!game) { skipped++; continue; }
 
+        // Fully overwrite: status + note + source, but only if this message
+        // is newer than what's already stored (messages arrive oldest-first)
         const result = await db
           .prepare(
-            "UPDATE signups SET note = ?, source_url = ?, source_type = 'email' WHERE game_id = ? AND player_name = ? AND source_url IS NULL"
+            "UPDATE signups SET status = ?, note = ?, source_url = ?, source_type = 'email', updated_at = ? WHERE game_id = ? AND player_name = ? AND updated_at <= ?"
           )
-          .bind(note, sourceUrl, game.id, resolved)
+          .bind(signup.status, note, sourceUrl, msg.created, game.id, resolved, msg.created)
           .run();
 
         if (result.meta?.changes > 0) updated++;
