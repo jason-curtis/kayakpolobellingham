@@ -58,13 +58,13 @@ export async function POST(request: NextRequest) {
 
         if (!game) { skipped++; continue; }
 
-        // Fully overwrite: status + note + source, but only if this message
-        // is newer than what's already stored (messages arrive oldest-first)
+        // Fully overwrite: status + note + source.
+        // Messages arrive oldest-first, so latest email per game+player wins.
         const result = await db
           .prepare(
-            "UPDATE signups SET status = ?, note = ?, source_url = ?, source_type = 'email', updated_at = ? WHERE game_id = ? AND player_name = ? AND updated_at <= ?"
+            "UPDATE signups SET status = ?, note = ?, source_url = ?, source_type = 'email' WHERE game_id = ? AND player_name = ?"
           )
-          .bind(signup.status, note, sourceUrl, msg.created, game.id, resolved, msg.created)
+          .bind(signup.status, note, sourceUrl, game.id, resolved)
           .run();
 
         if (result.meta?.changes > 0) updated++;
