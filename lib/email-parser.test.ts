@@ -89,6 +89,13 @@ describe("parseSignupsFromMessage", () => {
     expect(parseSignupsFromMessage("I might make it", "Dorothy Burke", withAliases)).toEqual([{ name: "Dorothy", status: "maybe" }]);
     expect(parseSignupsFromMessage("depends on work", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "maybe" }]);
   });
+  it("does not false-positive 'might' in non-signup context", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage(
+      "Gary says show up at the alley behind 509 Cowgill at 8:40. It might be difficult to keep you warm.",
+      "Dorothy Burke", withAliases
+    )).toEqual([]);
+  });
   it("parses Name maybe", () => {
     const withAliases = { resolveName, resolveSender };
     expect(parseSignupsFromMessage("gary maybe", "x", withAliases)).toEqual([{ name: "Gary", status: "maybe" }]);

@@ -194,7 +194,7 @@ export function parseSignupsFromMessage(
       continue;
     }
     // Explicit self-referencing maybe patterns (before name-based patterns)
-    if (/\bi'?m\s+a\s+maybe\b/.test(lower) || /\bi?\s*might\b/.test(lower) || /\btentative\b/.test(lower) || /\bunsure\b/.test(lower)) {
+    if (/\bi'?m\s+a\s+maybe\b/.test(lower) || /\bi\s+might\b/.test(lower) || /\btentative\b/.test(lower) || /\bunsure\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
       continue;
     }
