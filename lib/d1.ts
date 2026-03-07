@@ -6,6 +6,22 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type D1 = any;
 
+const PACIFIC_TZ = "America/Los_Angeles";
+
+/** Parse a naive datetime string as Pacific time. Strings with timezone info pass through. */
+export function parsePacific(datetime: string): Date {
+  if (/Z$|[+-]\d{2}:?\d{2}$/.test(datetime)) return new Date(datetime);
+  // Get Pacific UTC offset at this approximate date using Intl
+  const approx = new Date(datetime + "Z");
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: PACIFIC_TZ,
+    timeZoneName: "longOffset",
+  }).formatToParts(approx);
+  const tz = parts.find((p) => p.type === "timeZoneName");
+  const m = tz?.value?.match(/GMT([+-]\d{2}:\d{2})/);
+  return new Date(datetime + (m ? m[1] : "-08:00"));
+}
+
 async function getDB(): Promise<D1> {
   const { env } = await getCloudflareContext();
   return (env as { D1_DB: D1 }).D1_DB;
@@ -181,7 +197,7 @@ export async function addSignup(
     signup_deadline: string;
   } | null;
   if (game?.date && game?.time) {
-    const gameStart = new Date(`${game.date}T${game.time}`);
+    const gameStart = parsePacific(`${game.date}T${game.time}`);
     if (new Date(now) >= gameStart) {
       throw new Error("Game has already started — signups are closed");
     }
@@ -189,7 +205,7 @@ export async function addSignup(
 
   // Use original message time (source_at) for email/poller signups, current time for site signups
   const signupTime = source?.source_at ? new Date(source.source_at) : new Date(now);
-  const isLate = game?.signup_deadline ? signupTime > new Date(game.signup_deadline) : false;
+  const isLate = game?.signup_deadline ? signupTime > parsePacific(game.signup_deadline) : false;
   const note = source?.note ?? null;
   const sourceUrl = source?.source_url ?? null;
   const sourceType = source?.source_type ?? null;
