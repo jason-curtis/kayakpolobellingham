@@ -17,7 +17,7 @@ interface Regular {
   aliases: string[];
 }
 
-type Tab = 'games' | 'regulars' | 'scrape';
+type Tab = 'games' | 'regulars' | 'scrape' | 'debug';
 type Action = 'list' | 'create' | 'edit';
 
 function Shimmer({ rows = 3 }: { rows?: number }) {
@@ -98,6 +98,11 @@ export default function AdminPortal() {
   // Backfill state
   const [backfillLoading, setBackfillLoading] = useState(false);
   const [backfillMessage, setBackfillMessage] = useState('');
+
+  // Debug state
+  const [debugUrl, setDebugUrl] = useState('');
+  const [debugLoading, setDebugLoading] = useState(false);
+  const [debugResult, setDebugResult] = useState<any>(null);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -361,6 +366,31 @@ export default function AdminPortal() {
     }
   };
 
+  const handleDebugMessage = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!debugUrl.trim()) return;
+    setDebugLoading(true);
+    setDebugResult(null);
+    setError('');
+    try {
+      const res = await fetch('/api/admin/debug-message', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: debugUrl.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error ?? 'Debug failed');
+        return;
+      }
+      setDebugResult(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Debug failed');
+    } finally {
+      setDebugLoading(false);
+    }
+  };
+
   if (!authChecked) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4">
@@ -465,6 +495,16 @@ export default function AdminPortal() {
             }`}
           >
             📥 Scrape
+          </button>
+          <button
+            onClick={() => setTab('debug')}
+            className={`px-4 py-2 rounded font-semibold transition ${
+              tab === 'debug'
+                ? 'bg-white text-blue-600'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            🔍 Debug
           </button>
         </div>
 
@@ -853,6 +893,104 @@ export default function AdminPortal() {
                     </button>
                   </div>
                 </form>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Debug Tab */}
+        {tab === 'debug' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              🔍 Debug Message Parser
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Paste a groups.io message URL to see how it gets parsed by each method.
+            </p>
+            <form onSubmit={handleDebugMessage} className="flex gap-2 mb-6">
+              <input
+                type="text"
+                placeholder="https://groups.io/g/kayakpolobellingham/message/13396"
+                value={debugUrl}
+                onChange={(e) => setDebugUrl(e.target.value)}
+                className="flex-1 p-2 border rounded text-gray-900 placeholder-gray-400"
+              />
+              <button
+                type="submit"
+                disabled={debugLoading || !debugUrl.trim()}
+                className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400"
+              >
+                {debugLoading ? 'Parsing...' : 'Parse'}
+              </button>
+            </form>
+
+            {debugResult && (
+              <div className="space-y-4">
+                {/* Raw message */}
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-bold text-gray-900 mb-2">Raw Message</h3>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <div><span className="font-semibold">Message #:</span> {debugResult.raw.msgNum}</div>
+                    <div><span className="font-semibold">Subject:</span> {debugResult.raw.subject}</div>
+                    <div><span className="font-semibold">Sender:</span> {debugResult.raw.sender} → <span className="text-blue-600">{debugResult.raw.resolvedSender}</span></div>
+                    <div><span className="font-semibold">Created:</span> {debugResult.raw.created}</div>
+                    <div><span className="font-semibold">Body:</span></div>
+                    <pre className="bg-white border rounded p-2 text-xs whitespace-pre-wrap max-h-40 overflow-y-auto">{debugResult.raw.body}</pre>
+                  </div>
+                </div>
+
+                {/* isGameTopic */}
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-bold text-gray-900 mb-2">isGameTopic</h3>
+                  <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${debugResult.isGameTopic ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {debugResult.isGameTopic ? 'Yes' : 'No'}
+                  </span>
+                </div>
+
+                {/* extractGameDate */}
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-bold text-gray-900 mb-2">extractGameDate (regex)</h3>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <div><span className="font-semibold">Without reference date:</span> <code className="bg-white px-1 rounded">{debugResult.extractGameDate.withoutRef ?? 'null'}</code></div>
+                    <div><span className="font-semibold">With reference date ({debugResult.extractGameDate.refUsed ?? 'N/A'}):</span> <code className="bg-white px-1 rounded">{debugResult.extractGameDate.withRef ?? 'null'}</code></div>
+                  </div>
+                </div>
+
+                {/* Signups */}
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-bold text-gray-900 mb-2">parseSignupsFromMessage (regex)</h3>
+                  {debugResult.signups.length === 0 ? (
+                    <p className="text-sm text-gray-500">No signups parsed</p>
+                  ) : (
+                    <div className="space-y-1">
+                      {debugResult.signups.map((s: any, i: number) => (
+                        <div key={i} className="flex items-center gap-2 text-sm">
+                          <span className={`inline-block w-2.5 h-2.5 rounded-full ${s.status === 'in' ? 'bg-green-500' : s.status === 'out' ? 'bg-red-500' : 'bg-yellow-400'}`} />
+                          <span className="text-gray-900 font-medium">{s.name}</span>
+                          <span className="text-gray-500">({s.status})</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* LLM results */}
+                <div className="border rounded p-4 bg-gray-50">
+                  <h3 className="font-bold text-gray-900 mb-2">LLM (Gemini Flash Lite)</h3>
+                  {!debugResult.llm.extractDate && !debugResult.llm.parse ? (
+                    <p className="text-sm text-gray-500">No LLM results (OPENROUTER_API_KEY not set or request failed)</p>
+                  ) : (
+                    <div className="text-sm text-gray-700 space-y-2">
+                      <div><span className="font-semibold">llmExtractDate:</span> <code className="bg-white px-1 rounded">{debugResult.llm.extractDate ?? 'null'}</code></div>
+                      {debugResult.llm.parse && (
+                        <div>
+                          <span className="font-semibold">llmParse:</span>
+                          <pre className="bg-white border rounded p-2 text-xs mt-1">{JSON.stringify(debugResult.llm.parse, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>
