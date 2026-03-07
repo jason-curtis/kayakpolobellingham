@@ -187,7 +187,9 @@ export async function addSignup(
     }
   }
 
-  const isLate = game?.signup_deadline ? new Date(now) > new Date(game.signup_deadline) : false;
+  // Use original message time (source_at) for email/poller signups, current time for site signups
+  const signupTime = source?.source_at ? new Date(source.source_at) : new Date(now);
+  const isLate = game?.signup_deadline ? signupTime > new Date(game.signup_deadline) : false;
   const note = source?.note ?? null;
   const sourceUrl = source?.source_url ?? null;
   const sourceType = source?.source_type ?? null;
