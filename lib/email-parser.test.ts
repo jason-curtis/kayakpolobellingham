@@ -12,6 +12,8 @@ import {
   isBadName,
   parseInboundEmail,
   aggregateTopicsIntoGames,
+  isMidweekDate,
+  getGameTime,
   type Topic,
 } from "./email-parser";
 
@@ -99,6 +101,37 @@ describe("parseSignupsFromMessage", () => {
   it("parses Name maybe", () => {
     const withAliases = { resolveName, resolveSender };
     expect(parseSignupsFromMessage("gary maybe", "x", withAliases)).toEqual([{ name: "Gary", status: "maybe" }]);
+  });
+});
+
+describe("isMidweekDate", () => {
+  it("returns true for Mon-Fri", () => {
+    expect(isMidweekDate("2026-03-09")).toBe(true);  // Monday
+    expect(isMidweekDate("2026-03-11")).toBe(true);  // Wednesday
+    expect(isMidweekDate("2026-03-13")).toBe(true);  // Friday
+  });
+  it("returns false for Sat/Sun", () => {
+    expect(isMidweekDate("2026-03-07")).toBe(false); // Saturday
+    expect(isMidweekDate("2026-03-08")).toBe(false); // Sunday
+  });
+});
+
+describe("getGameTime", () => {
+  it("returns 09:00 for weekend dates", () => {
+    expect(getGameTime("2026-03-08")).toBe("09:00"); // Sunday
+    expect(getGameTime("2026-03-07")).toBe("09:00"); // Saturday
+  });
+  it("returns 17:30 for first 3 midweek games of the year", () => {
+    expect(getGameTime("2026-01-07", 0)).toBe("17:30"); // 1st
+    expect(getGameTime("2026-01-14", 1)).toBe("17:30"); // 2nd
+    expect(getGameTime("2026-01-21", 2)).toBe("17:30"); // 3rd
+  });
+  it("returns 18:00 for 4th+ midweek games", () => {
+    expect(getGameTime("2026-01-28", 3)).toBe("18:00"); // 4th
+    expect(getGameTime("2026-02-04", 4)).toBe("18:00"); // 5th
+  });
+  it("defaults to 18:00 when count not provided", () => {
+    expect(getGameTime("2026-03-11")).toBe("18:00"); // Wednesday, no count = safe default
   });
 });
 

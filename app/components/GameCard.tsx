@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/countdown';
+import TideChart from './TideChart';
 
 export interface SignupEntry {
   name: string;
@@ -187,6 +188,9 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
           <p className="text-sm text-gray-500 text-center mt-3">Game started · signups closed</p>
         )}
       </div>
+
+      {/* Tides */}
+      <TideChart date={game.date} gameTime={game.time} />
 
       {/* Signups */}
       <div className="bg-white rounded-lg shadow-lg p-6">

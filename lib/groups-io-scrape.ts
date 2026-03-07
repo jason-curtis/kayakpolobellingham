@@ -6,6 +6,8 @@
 import {
   isGameTopic,
   isBadName,
+  isMidweekDate,
+  getGameTime,
   parseDateFromTitle,
   parseSignupsFromMessage,
   resolveName,
@@ -51,9 +53,7 @@ export function processMessage(ld: DiscussionForumPosting): { gameDate: string; 
   const gameDate = parseDateFromTitle(headline, refDate);
   if (!gameDate) return null;
 
-  const titleLower = headline.toLowerCase();
-  const isWeds = titleLower.includes("weds") || titleLower.includes("wednesday") || titleLower.includes("wedd");
-  const time = isWeds ? "18:00" : "09:00";
+  const time = isMidweekDate(gameDate) ? "18:00" : "09:00"; // placeholder, corrected in gamesMapToParsedGames
 
   const sender = ld.author?.name ?? "Unknown";
   const text = ld.text ?? "";
@@ -117,7 +117,18 @@ export function gamesMapToParsedGames(map: GamesMap): ParsedGame[] {
       topicTitles: [],
     });
   }
-  return games.sort((a, b) => a.date.localeCompare(b.date));
+  const sorted = games.sort((a, b) => a.date.localeCompare(b.date));
+  // Correct midweek times: first 3 per year = 17:30
+  const midweekCountByYear = new Map<number, number>();
+  for (const game of sorted) {
+    if (isMidweekDate(game.date)) {
+      const year = parseInt(game.date.substring(0, 4));
+      const count = midweekCountByYear.get(year) ?? 0;
+      game.time = getGameTime(game.date, count);
+      midweekCountByYear.set(year, count + 1);
+    }
+  }
+  return sorted;
 }
 
 /** Sleep helper */

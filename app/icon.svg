@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Water splash behind ball -->
+  <path d="M4 22 Q6 17 10 20 Q13 14 16 19 Q19 14 22 20 Q26 17 28 22" fill="none" stroke="#4AA8D8" stroke-width="1.8" stroke-linecap="round"/>
+  <path d="M2 25 Q5 21 9 23 Q12 18 16 22 Q20 18 23 23 Q27 21 30 25" fill="none" stroke="#6BC4E8" stroke-width="1.4" stroke-linecap="round"/>
+  <!-- Water drops -->
+  <circle cx="7" cy="16" r="1.2" fill="#4AA8D8" opacity="0.7"/>
+  <circle cx="25" cy="15" r="1" fill="#4AA8D8" opacity="0.6"/>
+  <circle cx="5" cy="19" r="0.8" fill="#6BC4E8" opacity="0.5"/>
+  <!-- Ball body -->
+  <circle cx="16" cy="14" r="9.5" fill="#F5C542"/>
+  <circle cx="16" cy="14" r="9.5" fill="none" stroke="#D4A017" stroke-width="0.8"/>
+  <!-- Ball seam lines -->
+  <path d="M16 4.5 Q12 9 12 14 Q12 19 16 23.5" fill="none" stroke="#D4A017" stroke-width="0.7"/>
+  <path d="M16 4.5 Q20 9 20 14 Q20 19 16 23.5" fill="none" stroke="#D4A017" stroke-width="0.7"/>
+  <path d="M6.5 14 Q11 11 16 11 Q21 11 25.5 14" fill="none" stroke="#D4A017" stroke-width="0.7"/>
+  <path d="M6.5 14 Q11 17 16 17 Q21 17 25.5 14" fill="none" stroke="#D4A017" stroke-width="0.7"/>
+  <!-- Highlight -->
+  <ellipse cx="12.5" cy="10.5" rx="3" ry="2" fill="white" opacity="0.25"/>
+</svg>

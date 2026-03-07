@@ -99,6 +99,24 @@ export async function getGame(id: string, database?: D1 | null) {
 
 const DEFAULT_GAME_TIME = "09:00";
 
+/** Count midweek games (Mon-Fri) in a given year before a given date. */
+export async function countMidweekGamesInYear(
+  database: D1 | null | undefined,
+  year: string,
+  beforeDate: string,
+): Promise<number> {
+  const d = await db(database);
+  const row = await d
+    .prepare(
+      `SELECT COUNT(*) as count FROM games
+       WHERE date >= ? AND date < ? AND date < ?
+       AND CAST(strftime('%w', date) AS INTEGER) NOT IN (0, 6)`
+    )
+    .bind(`${year}-01-01`, `${parseInt(year) + 1}-01-01`, beforeDate)
+    .first();
+  return (row as any)?.count ?? 0;
+}
+
 export async function createGame(
   date: string,
   time?: string,

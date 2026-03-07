@@ -410,6 +410,27 @@ function formatDate(year: number, month: number, day: number): string | null {
   return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
+// ── Game time helpers ────────────────────────────────────────────────────────
+
+/** Check if a date falls on a weekday (Mon-Fri). */
+export function isMidweekDate(gameDate: string): boolean {
+  const d = new Date(`${gameDate}T12:00:00`);
+  const dow = d.getDay();
+  return dow >= 1 && dow <= 5;
+}
+
+/**
+ * Determine game time for a given date.
+ * Weekend (Sat/Sun): "09:00"
+ * Midweek: "17:30" for the first 3 of the calendar year, "18:00" after.
+ * @param priorMidweekCountInYear count of midweek games before this date in the same year (default 3 = safe fallback)
+ */
+export function getGameTime(gameDate: string, priorMidweekCountInYear?: number): string {
+  if (!isMidweekDate(gameDate)) return "09:00";
+  const count = priorMidweekCountInYear ?? 3;
+  return count < 3 ? "17:30" : "18:00";
+}
+
 // ── Game On roster ──────────────────────────────────────────────────────────
 
 export function parseRosterFromGameOn(body: string, resolveN: (name: string) => string = resolveName): string[] {
@@ -470,16 +491,12 @@ export function aggregateTopicsIntoGames(topics: Topic[]): ParsedGame[] {
     const gameDate = parseDateFromTitle(topic.title, firstMsgDate);
     if (!gameDate) continue;
 
-    const titleLower = topic.title.toLowerCase();
-    const isWeds = titleLower.includes("weds") || titleLower.includes("wednesday") || titleLower.includes("wedd");
-    const time = isWeds ? "18:00" : "09:00";
-
     if (!gameMap.has(gameDate)) {
       const dateObj = new Date(`${gameDate}T12:00:00`);
       gameMap.set(gameDate, {
         date: gameDate,
         dayOfWeek: DAYS[dateObj.getDay()],
-        time,
+        time: isMidweekDate(gameDate) ? "18:00" : "09:00", // placeholder, corrected below
         gameOn: false,
         noGame: false,
         players: [],
@@ -517,5 +534,17 @@ export function aggregateTopicsIntoGames(topics: Topic[]): ParsedGame[] {
     }
   }
 
-  return [...gameMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+  // Second pass: assign correct midweek times (first 3 per year = 17:30)
+  const sorted = [...gameMap.values()].sort((a, b) => a.date.localeCompare(b.date));
+  const midweekCountByYear = new Map<number, number>();
+  for (const game of sorted) {
+    if (isMidweekDate(game.date)) {
+      const year = parseInt(game.date.substring(0, 4));
+      const count = midweekCountByYear.get(year) ?? 0;
+      game.time = getGameTime(game.date, count);
+      midweekCountByYear.set(year, count + 1);
+    }
+  }
+
+  return sorted;
 }

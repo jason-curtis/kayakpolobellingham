@@ -12,6 +12,8 @@ describe("applyInboundEmail", () => {
     vi.mocked(d1.getGameByDate).mockReset();
     vi.mocked(d1.createGame).mockReset();
     vi.mocked(d1.addSignup).mockReset();
+    vi.mocked(d1.countMidweekGamesInYear).mockReset();
+    vi.mocked(d1.countMidweekGamesInYear).mockResolvedValue(0);
   });
 
   it("returns no game and zero signups when gameDate is missing", async () => {
@@ -89,7 +91,7 @@ describe("applyInboundEmail", () => {
     const out = await applyInboundEmail(mockDb, result);
 
     expect(d1.getGameByDate).toHaveBeenCalledWith(mockDb, "2026-03-01");
-    expect(d1.createGame).toHaveBeenCalledWith("2026-03-01", undefined, undefined, mockDb);
+    expect(d1.createGame).toHaveBeenCalledWith("2026-03-01", "09:00", undefined, mockDb);
     expect(d1.addSignup).toHaveBeenCalledWith("game-new", "Gary", "in", mockDb, {
       note: "I'm in",
       source_url: null,

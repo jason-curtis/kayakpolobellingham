@@ -3,10 +3,12 @@
  * Uses d1.ts for all DB access; accepts explicit db for Worker RPC (no request context).
  */
 import type { EmailParseResult } from "./email-parser";
+import { getGameTime } from "./email-parser";
 import {
   getGameByDate,
   createGame,
   addSignup,
+  countMidweekGamesInYear,
 } from "./d1";
 
 /** Apply parsed inbound email to D1: ensure game exists for date, then upsert each signup. */
@@ -22,7 +24,10 @@ export async function applyInboundEmail(
 
   let game = await getGameByDate(database, result.gameDate);
   if (!game) {
-    const created = await createGame(result.gameDate, undefined, undefined, database);
+    const year = result.gameDate.substring(0, 4);
+    const midweekCount = await countMidweekGamesInYear(database, year, result.gameDate);
+    const time = getGameTime(result.gameDate, midweekCount);
+    const created = await createGame(result.gameDate, time, undefined, database);
     if (!created) return { gameId: null, signupsApplied: 0 };
     game = { id: created.id };
   }
