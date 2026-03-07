@@ -930,6 +930,7 @@ export default function AdminPortal() {
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">Raw Message</h3>
                   <div className="text-sm text-gray-700 space-y-1">
+                    <div><span className="font-semibold">Source:</span> <code className="bg-white px-1 rounded">{debugResult.source ?? 'unknown'}</code></div>
                     <div><span className="font-semibold">Message #:</span> {debugResult.raw.msgNum}</div>
                     <div><span className="font-semibold">Subject:</span> {debugResult.raw.subject}</div>
                     <div><span className="font-semibold">Sender:</span> {debugResult.raw.sender} → <span className="text-blue-600">{debugResult.raw.resolvedSender}</span></div>

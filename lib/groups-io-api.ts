@@ -94,6 +94,31 @@ export async function fetchAllMessages(
   return all;
 }
 
+/** Fetch a single message by msg_num. Scans recent messages to find the match. */
+export async function fetchMessageByNum(
+  apiKey: string,
+  groupId: number,
+  msgNum: number,
+): Promise<GroupsIoMessage | null> {
+  // Try fetching a small window of messages around the target
+  // The API sorts by created, so we fetch descending and scan
+  const url = new URL(`${API_BASE}/getmessages`);
+  url.searchParams.set("group_id", String(groupId));
+  url.searchParams.set("limit", "100");
+  url.searchParams.set("sort_field", "created");
+  url.searchParams.set("sort_dir", "desc");
+
+  const res = await fetch(url.toString(), {
+    headers: { Authorization: `Bearer ${apiKey}` },
+  });
+  if (!res.ok) {
+    throw new Error(`groups.io API error: ${res.status} ${res.statusText}`);
+  }
+
+  const json = (await res.json()) as MessagesResponse;
+  return json.data?.find((m) => m.msg_num === msgNum) ?? null;
+}
+
 /** Decode common HTML entities in snippet text. */
 export function decodeSnippet(snippet: string): string {
   return snippet

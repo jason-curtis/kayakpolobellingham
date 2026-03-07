@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
+import { fetchMessageByNum, decodeSnippet, messageUrl } from "@/lib/groups-io-api";
 import { fetchMessagePage, extractJsonLd } from "@/lib/groups-io-scrape";
-import { decodeSnippet } from "@/lib/groups-io-api";
 import {
   isGameTopic,
   extractGameDate,
@@ -11,6 +11,8 @@ import {
   resolveSender,
 } from "@/lib/email-parser";
 import { llmExtractDate, llmParse } from "@/lib/openrouter";
+
+const GROUP_ID = 14099;
 
 export async function POST(request: NextRequest) {
   const authError = requireAdmin(request);
@@ -24,20 +26,48 @@ export async function POST(request: NextRequest) {
   const msgNum = parseInt(match[1], 10);
 
   try {
-    // Fetch and parse message HTML
-    const html = await fetchMessagePage(msgNum);
-    if (!html) {
-      return NextResponse.json({ error: `Message ${msgNum} not found (404)` }, { status: 404 });
-    }
-    const ld = extractJsonLd(html);
-    if (!ld) {
-      return NextResponse.json({ error: "Could not extract JSON-LD from message page" }, { status: 422 });
+    const { env } = await getCloudflareContext();
+    const { GROUPS_IO_API_KEY: apiKey, OPENROUTER_API_KEY: openrouterKey } = env as {
+      GROUPS_IO_API_KEY?: string;
+      OPENROUTER_API_KEY?: string;
+    };
+
+    let subject = "";
+    let senderRaw = "";
+    let body = "";
+    let created: string | null = null;
+    let source = "unknown";
+
+    // Primary: use Groups.io API (authenticated, reliable from Workers)
+    if (apiKey) {
+      const msg = await fetchMessageByNum(apiKey, GROUP_ID, msgNum);
+      if (msg) {
+        subject = msg.subject;
+        senderRaw = msg.name;
+        body = decodeSnippet(msg.snippet || msg.body || "");
+        created = msg.created;
+        source = "api";
+      }
     }
 
-    const subject = ld.headline ?? "";
-    const senderRaw = ld.author?.name ?? "";
-    const body = decodeSnippet(ld.text ?? "");
-    const created = ld.datePublished ?? null;
+    // Fallback: scrape HTML page for JSON-LD
+    if (!source || source === "unknown") {
+      const html = await fetchMessagePage(msgNum);
+      if (!html) {
+        return NextResponse.json({ error: `Message ${msgNum} not found (404)` }, { status: 404 });
+      }
+      const ld = extractJsonLd(html);
+      if (!ld) {
+        return NextResponse.json({
+          error: "Could not fetch message via API (no key?) or extract JSON-LD from page",
+        }, { status: 422 });
+      }
+      subject = ld.headline ?? "";
+      senderRaw = ld.author?.name ?? "";
+      body = decodeSnippet(ld.text ?? "");
+      created = ld.datePublished ?? null;
+      source = "html-scrape";
+    }
 
     // Run all parsing steps
     const resolvedSender = resolveSender(senderRaw);
@@ -49,19 +79,18 @@ export async function POST(request: NextRequest) {
     // LLM results (if key available)
     let llmDate: string | null = null;
     let llmFull = null;
-    try {
-      const { env } = await getCloudflareContext();
-      const openrouterKey = (env as { OPENROUTER_API_KEY?: string }).OPENROUTER_API_KEY;
-      if (openrouterKey) {
+    if (openrouterKey) {
+      try {
         const ref = created?.slice(0, 10);
         [llmDate, llmFull] = await Promise.all([
           llmExtractDate(openrouterKey, subject, body, ref),
           llmParse(openrouterKey, subject, body, ref),
         ]);
-      }
-    } catch {}
+      } catch {}
+    }
 
     return NextResponse.json({
+      source,
       raw: { msgNum, subject, sender: senderRaw, resolvedSender, body, created },
       isGameTopic: gameTopic,
       extractGameDate: { withoutRef: dateNoRef, withRef: dateWithRef, refUsed: created },
