@@ -176,10 +176,10 @@ export default function StatsPage() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">
             Stats
           </h1>
-          <p className="text-blue-100">Attendance analytics</p>
+          <p className="text-sm text-blue-100">Attendance analytics</p>
         </div>
 
         {/* Season Summary */}

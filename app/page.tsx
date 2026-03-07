@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react';
-import GameCard, { Game, formatGameDate, formatGameTime, getGameStatus } from '@/app/components/GameCard';
+import GameCard, { Game, formatGameDate, formatGameTime, getGameStatus, getGameState } from '@/app/components/GameCard';
 
 export default function Home() {
   const [games, setGames] = useState<Game[]>([]);
@@ -97,10 +97,10 @@ export default function Home() {
       <div className="max-w-4xl mx-auto">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
-            🚣 Kayak Polo Bellingham
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">
+            Kayak Polo Bellingham
           </h1>
-          <p className="text-blue-100">Weekly pickup games</p>
+          <p className="text-sm text-blue-100">Weekly pickup games</p>
         </div>
 
         {error && (
@@ -140,9 +140,9 @@ export default function Home() {
                     </a>
                   </div>
                   <div className={`text-sm font-semibold mt-1 ${
-                    getGameStatus(game).includes('GAME ON')
+                    getGameState(game) === 'game_on'
                       ? 'text-green-600'
-                      : getGameStatus(game).includes('NO GAME')
+                      : getGameState(game) === 'cancelled'
                       ? 'text-red-600'
                       : 'text-blue-600'
                   }`}>

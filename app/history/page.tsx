@@ -83,7 +83,7 @@ function HistoryContent() {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-4xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">Game History</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">Game History</h1>
           <p className="text-blue-100">{total} games</p>
         </div>
 

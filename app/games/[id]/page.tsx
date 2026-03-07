@@ -73,10 +73,10 @@ export default function GameDetailPage() {
     <div className="min-h-screen p-4 md:p-8">
       <div className="max-w-2xl mx-auto">
         <div className="text-center mb-8">
-          <h1 className="text-4xl md:text-5xl font-bold text-white mb-2">
-            🚣 Kayak Polo Bellingham
+          <h1 className="text-3xl md:text-4xl font-bold text-white mb-1">
+            Kayak Polo Bellingham
           </h1>
-          <p className="text-blue-100">Game details</p>
+          <p className="text-sm text-blue-100">Game details</p>
         </div>
 
         {error && (
