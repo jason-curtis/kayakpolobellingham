@@ -369,12 +369,27 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
       </div>
 
       {/* ── Tide summary ── */}
-      {tideDelta != null && (
-        <p className="text-sm text-gray-500 mt-1">
-          Tide will {tideDelta > 0 ? 'come in' : 'go out'}{' '}
-          {Math.abs(tideDelta).toFixed(1)}ft during game
-        </p>
-      )}
+      {tideDelta != null && tidePoints && tidePoints.length > 1 && (() => {
+        function tideAtHourSummary(h: number): number | null {
+          for (let i = 0; i < tidePoints!.length - 1; i++) {
+            const a = tidePoints![i], b = tidePoints![i + 1];
+            if (a.hour <= h && b.hour >= h) {
+              const t = (h - a.hour) / (b.hour - a.hour);
+              return a.ft + t * (b.ft - a.ft);
+            }
+          }
+          return null;
+        }
+        const startFt = tideAtHourSummary(gameStartH);
+        const endFt = tideAtHourSummary(gameEndH);
+        if (startFt == null || endFt == null) return null;
+        const verb = tideDelta > 0 ? 'flooding' : 'ebbing';
+        return (
+          <p className="text-sm text-gray-500 mt-1">
+            Tide {verb} {startFt.toFixed(1)}ft → {endFt.toFixed(1)}ft during game
+          </p>
+        );
+      })()}
 
       {/* ── Weather table ── */}
       {weather && (

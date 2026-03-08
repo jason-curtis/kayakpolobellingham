@@ -17,7 +17,7 @@ interface Regular {
   aliases: string[];
 }
 
-type Tab = 'games' | 'regulars' | 'scrape' | 'debug';
+type Tab = 'games' | 'regulars' | 'scrape' | 'debug' | 'notify';
 type Action = 'list' | 'create' | 'edit';
 
 function Shimmer({ rows = 3 }: { rows?: number }) {
@@ -135,6 +135,10 @@ function AdminContent() {
   const [debugUrl, setDebugUrlState] = useState(searchParams.get('url') ?? '');
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState<any>(null);
+
+  // Notify preview state
+  const [notifyPreview, setNotifyPreview] = useState<any>(null);
+  const [notifyLoading, setNotifyLoading] = useState(false);
 
   const setDebugUrl = useCallback((url: string) => {
     setDebugUrlState(url);
@@ -447,7 +451,7 @@ function AdminContent() {
       <div className="min-h-screen bg-gradient-to-br from-purple-600 to-pink-600 flex items-center justify-center p-4">
         <div className="bg-white rounded-lg shadow-xl p-8 w-full max-w-md">
           <h1 className="text-2xl font-bold text-gray-900 mb-2 text-center">
-            🔐 Admin Portal
+            🔐 Admin
           </h1>
           <p className="text-gray-600 text-center mb-6">Kayak Polo Bellingham</p>
 
@@ -484,7 +488,7 @@ function AdminContent() {
         {/* Header */}
         <div className="flex justify-between items-center mb-8">
           <h1 className="text-3xl font-bold text-white">
-            🎮 Admin Portal
+            🎮 Admin
           </h1>
           <button
             onClick={() => {
@@ -548,6 +552,16 @@ function AdminContent() {
             }`}
           >
             🔍 Debug
+          </button>
+          <button
+            onClick={() => setTab('notify')}
+            className={`px-4 py-2 rounded font-semibold transition ${
+              tab === 'notify'
+                ? 'bg-white text-blue-600'
+                : 'bg-white/30 text-white hover:bg-white/40'
+            }`}
+          >
+            📧 Notify
           </button>
         </div>
 
@@ -1096,6 +1110,63 @@ function AdminContent() {
                     </div>
                   </div>
                 )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Notify Preview Tab */}
+        {tab === 'notify' && (
+          <div className="bg-white rounded-lg shadow-lg p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              📧 Notification Preview
+            </h2>
+            <p className="text-gray-600 mb-4">
+              Preview the game-on notification email for the next upcoming game.
+            </p>
+            <button
+              type="button"
+              onClick={async () => {
+                setNotifyLoading(true);
+                try {
+                  const res = await fetch('/api/admin/preview-notification');
+                  const data = await res.json();
+                  setNotifyPreview(data);
+                } catch (err) {
+                  setNotifyPreview({ error: err instanceof Error ? err.message : 'Failed' });
+                } finally {
+                  setNotifyLoading(false);
+                }
+              }}
+              disabled={notifyLoading}
+              className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 mb-4"
+            >
+              {notifyLoading ? 'Loading...' : 'Load Preview'}
+            </button>
+
+            {notifyPreview && !notifyPreview.error && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-sm text-gray-600">
+                  <span>Game: <code className="bg-gray-100 px-1 rounded">{notifyPreview.date}</code></span>
+                  <span>In: <strong>{notifyPreview.inCount}</strong></span>
+                  {notifyPreview.alreadySent && (
+                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">Already sent</span>
+                  )}
+                </div>
+                <div className="border rounded p-4 bg-gray-50">
+                  <div className="text-xs text-gray-400 mb-1">Subject</div>
+                  <div className="font-semibold text-gray-900">{notifyPreview.subject}</div>
+                </div>
+                <div className="border rounded p-4 bg-gray-50">
+                  <div className="text-xs text-gray-400 mb-1">Body</div>
+                  <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">{notifyPreview.body}</pre>
+                </div>
+              </div>
+            )}
+
+            {notifyPreview?.error && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-2 rounded text-sm">
+                {notifyPreview.error}
               </div>
             )}
           </div>

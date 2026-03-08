@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Admin Portal - Kayak Polo Bellingham",
+  title: "Admin - Kayak Polo Bellingham",
   description: "Manage games and player signups",
 };
 

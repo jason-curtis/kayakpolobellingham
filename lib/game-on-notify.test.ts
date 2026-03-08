@@ -59,7 +59,7 @@ describe("buildBody", () => {
     expect(body).toContain("48°F");
 
     // Game permalink
-    expect(body).toContain("https://kayakpolosignups.option-zero.workers.dev/game/game-123");
+    expect(body).toContain("https://kayakpolosignups.option-zero.workers.dev/games/game-123");
 
     // No time/location
     expect(body).not.toContain("Time:");
@@ -83,7 +83,7 @@ describe("buildBody", () => {
 
   it("includes game permalink with game id", () => {
     const body = buildBody(game, signups, "Conditions unavailable");
-    expect(body).toContain("/game/game-123");
+    expect(body).toContain("/games/game-123");
   });
 });
 

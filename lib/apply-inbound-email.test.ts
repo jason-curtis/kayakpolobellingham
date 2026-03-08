@@ -92,6 +92,7 @@ describe("applyInboundEmail", () => {
 
     expect(d1.getGameByDate).toHaveBeenCalledWith(mockDb, "2026-03-01");
     expect(d1.createGame).toHaveBeenCalledWith("2026-03-01", "09:00", undefined, mockDb);
+    // New games use date as ID
     expect(d1.addSignup).toHaveBeenCalledWith("game-new", "Gary", "in", mockDb, {
       note: "I'm in",
       source_url: null,

@@ -192,7 +192,7 @@ export default function Home() {
             Stats
           </a>
           <a href="/admin" className="text-white hover:text-blue-200 underline text-sm">
-            Admin Portal
+            Admin
           </a>
         </div>
       </div>

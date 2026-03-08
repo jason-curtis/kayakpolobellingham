@@ -119,9 +119,15 @@ export async function fetchMessageByNum(
   return json.data?.find((m) => m.msg_num === msgNum) ?? null;
 }
 
-/** Decode common HTML entities in snippet text. */
+/** Strip HTML tags, convert block elements to newlines, and decode entities. */
 export function decodeSnippet(snippet: string): string {
   return snippet
+    // Convert block-level tags to newlines before stripping
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/(p|div|li|tr|blockquote)>/gi, "\n")
+    // Strip remaining HTML tags
+    .replace(/<[^>]+>/g, "")
+    // Decode HTML entities
     .replace(/&#39;/g, "'")
     .replace(/&#x27;/g, "'")
     .replace(/&amp;/g, "&")

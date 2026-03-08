@@ -84,7 +84,7 @@ export function buildBody(
   lines.push("");
 
   // Permalink
-  lines.push(`${SITE_URL}/game/${game.id}`);
+  lines.push(`${SITE_URL}/games/${game.id}`);
   lines.push("");
   lines.push("---");
   lines.push("This is an automated message sent when the 6th player signed up.");

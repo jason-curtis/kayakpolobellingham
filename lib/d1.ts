@@ -124,7 +124,7 @@ export async function createGame(
   database?: D1 | null
 ): Promise<{ id: string } | null> {
   const d = await db(database);
-  const id = `game-${Date.now()}`;
+  const id = date; // e.g. "2026-03-08"
   const now = new Date().toISOString();
   const deadline =
     signup_deadline ??
