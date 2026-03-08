@@ -986,8 +986,8 @@ function AdminContent() {
                 {/* isGameTopic */}
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">isGameTopic</h3>
-                  <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${debugResult.isGameTopic ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
-                    {debugResult.isGameTopic ? 'Yes' : 'No'}
+                  <span className={`inline-block px-2 py-1 rounded text-sm font-semibold ${debugResult.unified.isGameTopic ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}>
+                    {debugResult.unified.isGameTopic ? 'Yes' : 'No'}
                   </span>
                 </div>
 
@@ -995,19 +995,19 @@ function AdminContent() {
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">extractGameDate (regex)</h3>
                   <div className="text-sm text-gray-700 space-y-1">
-                    <div><span className="font-semibold">Without reference date:</span> <code className="bg-white px-1 rounded">{debugResult.extractGameDate.withoutRef ?? 'null'}</code></div>
-                    <div><span className="font-semibold">With reference date ({debugResult.extractGameDate.refUsed ?? 'N/A'}):</span> <code className="bg-white px-1 rounded">{debugResult.extractGameDate.withRef ?? 'null'}</code></div>
+                    <div><span className="font-semibold">Without reference date:</span> <code className="bg-white px-1 rounded">{debugResult.debug.extractGameDate.withoutRef ?? 'null'}</code></div>
+                    <div><span className="font-semibold">With reference date ({debugResult.debug.extractGameDate.refUsed ?? 'N/A'}):</span> <code className="bg-white px-1 rounded">{debugResult.debug.extractGameDate.withRef ?? 'null'}</code></div>
                   </div>
                 </div>
 
                 {/* Signups */}
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">parseSignupsFromMessage (regex)</h3>
-                  {debugResult.signups.length === 0 ? (
+                  {debugResult.debug.rawSignups.length === 0 ? (
                     <p className="text-sm text-gray-500">No signups parsed</p>
                   ) : (
                     <div className="space-y-1">
-                      {debugResult.signups.map((s: any, i: number) => (
+                      {debugResult.debug.rawSignups.map((s: any, i: number) => (
                         <div key={i} className="flex items-center gap-2 text-sm">
                           <span className={`inline-block w-2.5 h-2.5 rounded-full ${s.status === 'in' ? 'bg-green-500' : s.status === 'out' ? 'bg-red-500' : 'bg-yellow-400'}`} />
                           <span className="text-gray-900 font-medium">{s.name}</span>
@@ -1021,20 +1021,81 @@ function AdminContent() {
                 {/* LLM results */}
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">LLM (Gemini Flash Lite)</h3>
-                  {!debugResult.llm.extractDate && !debugResult.llm.parse ? (
+                  {!debugResult.debug.llmParse ? (
                     <p className="text-sm text-gray-500">No LLM results (OPENROUTER_API_KEY not set or request failed)</p>
                   ) : (
                     <div className="text-sm text-gray-700 space-y-2">
-                      <div><span className="font-semibold">llmExtractDate:</span> <code className="bg-white px-1 rounded">{debugResult.llm.extractDate ?? 'null'}</code></div>
-                      {debugResult.llm.parse && (
-                        <div>
-                          <span className="font-semibold">llmParse:</span>
-                          <pre className="bg-white border rounded p-2 text-xs mt-1">{JSON.stringify(debugResult.llm.parse, null, 2)}</pre>
-                        </div>
-                      )}
+                      <div><span className="font-semibold">game_date:</span> <code className="bg-white px-1 rounded">{debugResult.debug.llmParse.game_date ?? 'null'}</code></div>
+                      <div>
+                        <span className="font-semibold">llmParse:</span>
+                        <pre className="bg-white border rounded p-2 text-xs mt-1">{JSON.stringify(debugResult.debug.llmParse, null, 2)}</pre>
+                      </div>
                     </div>
                   )}
                 </div>
+
+                {/* Unified result (production path) */}
+                <div className="border rounded p-4 bg-blue-50">
+                  <h3 className="font-bold text-gray-900 mb-2">Unified Result (production path)</h3>
+                  <div className="text-sm text-gray-700 space-y-1">
+                    <div><span className="font-semibold">gameDate:</span> <code className="bg-white px-1 rounded">{debugResult.unified.gameDate ?? 'null'}</code></div>
+                    <div><span className="font-semibold">senderName:</span> <code className="bg-white px-1 rounded">{debugResult.unified.senderName ?? 'unknown'}</code></div>
+                    {debugResult.unified.signups.length === 0 ? (
+                      <p className="text-gray-500">No signups</p>
+                    ) : (
+                      <div className="space-y-1">
+                        {debugResult.unified.signups.map((s: any, i: number) => (
+                          <div key={i} className="flex items-center gap-2">
+                            <span className={`inline-block w-2.5 h-2.5 rounded-full ${s.status === 'in' ? 'bg-green-500' : s.status === 'out' ? 'bg-red-500' : 'bg-yellow-400'}`} />
+                            <span className="text-gray-900 font-medium">{s.name}</span>
+                            <span className="text-gray-500">({s.status})</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Apply button */}
+                {debugResult.unified.isGameTopic && debugResult.unified.gameDate && debugResult.unified.signups.length > 0 && !debugResult.applied && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        setDebugLoading(true);
+                        const res = await fetch('/api/admin/debug-message', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ url: debugUrl.trim(), apply: true }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) {
+                          setError(data.error ?? 'Apply failed');
+                          return;
+                        }
+                        setDebugResult(data);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Apply failed');
+                      } finally {
+                        setDebugLoading(false);
+                      }
+                    }}
+                    disabled={debugLoading}
+                    className="w-full px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
+                  >
+                    {debugLoading ? 'Applying...' : 'Apply to Database'}
+                  </button>
+                )}
+
+                {/* Applied result */}
+                {debugResult.applied && (
+                  <div className="border rounded p-4 bg-green-50">
+                    <h3 className="font-bold text-green-800 mb-2">Applied</h3>
+                    <div className="text-sm text-green-700 space-y-1">
+                      <div><span className="font-semibold">Game ID:</span> <code className="bg-white px-1 rounded">{debugResult.applied.gameId}</code></div>
+                      <div><span className="font-semibold">Signups Applied:</span> {debugResult.applied.signupsApplied}</div>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </div>
