@@ -471,7 +471,7 @@ export function isGameTopic(title: string): boolean {
 // hourly reconciliation poller, and admin backfill. Always applies name
 // resolution and LLM date fallback (when key provided).
 
-import { llmExtractDate } from "./openrouter";
+import { llmParse } from "./openrouter";
 
 export async function parseGameMessage(opts: {
   subject: string;
@@ -482,13 +482,20 @@ export async function parseGameMessage(opts: {
 }): Promise<EmailParseResult> {
   const cleaned = stripQuotedText(opts.body);
   const senderName = resolveSender(opts.senderName);
-  const signups = parseSignupsFromMessage(cleaned, senderName, { resolveName, resolveSender });
+  let signups = parseSignupsFromMessage(cleaned, senderName, { resolveName, resolveSender });
   const isGame = isGameTopic(opts.subject);
   let gameDate = extractGameDate(opts.subject, opts.referenceDate);
 
-  // LLM fallback for date when regex fails on a game-related topic
-  if (!gameDate && isGame && opts.openrouterKey) {
-    gameDate = await llmExtractDate(opts.openrouterKey, opts.subject, cleaned, opts.referenceDate);
+  // LLM fallback when regex comes up short on a game-related topic
+  if (isGame && opts.openrouterKey && (!gameDate || signups.length === 0)) {
+    const llm = await llmParse(opts.openrouterKey, opts.subject, cleaned, opts.referenceDate);
+    if (llm) {
+      if (!gameDate && llm.game_date) gameDate = llm.game_date;
+      if (signups.length === 0 && llm.is_signup && llm.name && llm.status) {
+        const resolved = resolveName(llm.name);
+        if (resolved) signups = [{ name: resolved, status: llm.status }];
+      }
+    }
   }
 
   return {

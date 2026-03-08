@@ -11,7 +11,8 @@ import {
   resolveName,
   resolveSender,
 } from "@/lib/email-parser";
-import { llmExtractDate } from "@/lib/openrouter";
+import { llmParse } from "@/lib/openrouter";
+import { applyInboundEmail } from "@/lib/apply-inbound-email";
 
 const GROUP_ID = 14099;
 
@@ -19,7 +20,7 @@ export async function POST(request: NextRequest) {
   const authError = requireAdmin(request);
   if (authError) return authError;
 
-  const { url } = (await request.json()) as { url: string };
+  const { url, apply } = (await request.json()) as { url: string; apply?: boolean };
   const match = url.match(/\/message\/(\d+)/);
   if (!match) {
     return NextResponse.json({ error: "Could not extract message number from URL" }, { status: 400 });
@@ -28,7 +29,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const { env } = await getCloudflareContext();
-    const { GROUPS_IO_API_KEY: apiKey, OPENROUTER_API_KEY: openrouterKey } = env as {
+    const { D1_DB: db, GROUPS_IO_API_KEY: apiKey, OPENROUTER_API_KEY: openrouterKey } = env as {
+      D1_DB: any;
       GROUPS_IO_API_KEY?: string;
       OPENROUTER_API_KEY?: string;
     };
@@ -84,12 +86,24 @@ export async function POST(request: NextRequest) {
     const dateWithRef = created ? extractGameDate(subject, created) : null;
     const rawSignups = parseSignupsFromMessage(body, senderRaw, { resolveName, resolveSender });
 
-    // Standalone LLM date (for comparison)
-    let llmDate: string | null = null;
+    // Standalone LLM parse (for comparison)
+    let llmResult = null;
     if (openrouterKey) {
       try {
-        llmDate = await llmExtractDate(openrouterKey, subject, body, created?.slice(0, 10));
+        llmResult = await llmParse(openrouterKey, subject, body, created?.slice(0, 10));
       } catch {}
+    }
+
+    // Apply to D1 if requested
+    let applied = null;
+    if (apply && unified.isGameTopic && unified.gameDate && unified.signups.length > 0) {
+      const result = await applyInboundEmail(
+        db,
+        unified,
+        messageUrl(msgNum),
+        created ?? undefined,
+      );
+      applied = { gameId: result.gameId, signupsApplied: result.signupsApplied };
     }
 
     return NextResponse.json({
@@ -104,8 +118,9 @@ export async function POST(request: NextRequest) {
       debug: {
         extractGameDate: { withoutRef: dateNoRef, withRef: dateWithRef, refUsed: created },
         rawSignups,
-        llmExtractDate: llmDate,
+        llmParse: llmResult,
       },
+      ...(applied ? { applied } : {}),
     });
   } catch (error) {
     return NextResponse.json({ error: "Debug failed", details: String(error) }, { status: 500 });
