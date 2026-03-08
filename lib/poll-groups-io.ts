@@ -5,6 +5,7 @@
 import { fetchRecentMessages, decodeSnippet, messageUrl, type GroupsIoMessage } from "./groups-io-api";
 import { parseGameMessage, isGameTopic } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
+import { checkAndNotify, type SendEmailFn } from "./game-on-notify";
 import { logger } from "./logger";
 
 const GROUP_ID = 14099;
@@ -46,6 +47,7 @@ export async function pollForNewMessages(
   db: D1,
   apiKey: string,
   openrouterKey?: string,
+  sendEmail?: SendEmailFn,
 ): Promise<PollResult> {
   const cursor = await getCursor(db);
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, FETCH_LIMIT);
@@ -112,6 +114,18 @@ export async function pollForNewMessages(
       totalSignups += applyResult.signupsApplied;
       if (applyResult.gameId && !gamesAffected.includes(applyResult.gameId)) {
         gamesAffected.push(applyResult.gameId);
+      }
+
+      // Check if this signup triggered game-on threshold
+      if (applyResult.gameId && sendEmail) {
+        try {
+          await checkAndNotify(db, applyResult.gameId, sendEmail);
+        } catch (err) {
+          logger.warn(
+            { event: "game_on_check_error", gameId: applyResult.gameId, error: String(err) },
+            "game-on notification check failed (non-fatal)",
+          );
+        }
       }
     } catch (err) {
       logger.warn(

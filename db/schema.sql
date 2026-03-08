@@ -5,6 +5,7 @@ CREATE TABLE IF NOT EXISTS games (
   time TEXT NOT NULL,
   signup_deadline TEXT NOT NULL,
   status TEXT NOT NULL DEFAULT 'open',
+  game_on_notified INTEGER NOT NULL DEFAULT 0,
   created_at TEXT NOT NULL,
   updated_at TEXT NOT NULL
 );

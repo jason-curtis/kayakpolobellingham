@@ -9,6 +9,8 @@ import { WorkerEntrypoint } from "cloudflare:workers";
 import { parseGameMessage, extractSenderName } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
 import { pollForNewMessages } from "./lib/poll-groups-io";
+import { checkAndNotify } from "./lib/game-on-notify";
+import { createGroupsIoSender } from "./lib/send-email";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -47,7 +49,8 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
     }
     try {
       logger.info({ event: "reconciliation_start" }, "hourly reconciliation sweep starting");
-      const result = await pollForNewMessages(this.env.D1_DB, apiKey, this.env.OPENROUTER_API_KEY);
+      const sendEmail = createGroupsIoSender(apiKey);
+      const result = await pollForNewMessages(this.env.D1_DB, apiKey, this.env.OPENROUTER_API_KEY, sendEmail);
       logger.info({ event: "reconciliation_complete", ...result }, "hourly reconciliation sweep complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -89,6 +92,20 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         { event: "email_applied", gameId: gameId ?? undefined, signupsApplied },
         "parsed signups applied to D1"
       );
+
+      // Check if this signup triggered game-on threshold
+      if (gameId && this.env.GROUPS_IO_API_KEY) {
+        try {
+          const sendEmail = createGroupsIoSender(this.env.GROUPS_IO_API_KEY);
+          await checkAndNotify(db, gameId, sendEmail);
+        } catch (err) {
+          logger.warn(
+            { event: "game_on_check_error", gameId, error: String(err) },
+            "game-on notification check failed (non-fatal)",
+          );
+        }
+      }
+
       return { ok: true, gameId: gameId ?? undefined, signupsApplied };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
