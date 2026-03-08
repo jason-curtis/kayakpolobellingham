@@ -199,7 +199,7 @@ export function parseSignupsFromMessage(
       continue;
     }
 
-    const andPattern = lower.match(/^([a-z][a-z'\-]{1,15})\s+and\s+([a-z][a-z'\-]{1,15})\s+(?:are\s+)?(in|out|maybe)\b/);
+    const andPattern = lower.match(/^([a-z][a-z'\-]{1,15})\s+and\s+([a-z][a-z'\-]{1,15})\s+(?:are\s+|will\s+be\s+)?(in|out|maybe)\b/);
     if (andPattern) {
       const n1 = resolveN(andPattern[1]);
       const n2 = resolveN(andPattern[2]);
@@ -209,7 +209,7 @@ export function parseSignupsFromMessage(
       continue;
     }
 
-    const nameInOut = lower.match(/^([a-z][a-z'\-]{1,15})\s+(in|out|maybe)\b/);
+    const nameInOut = lower.match(/^([a-z][a-z'\-]{1,15})\s+(?:is\s+|will\s+be\s+)?(in|out|maybe)\b/);
     if (nameInOut) {
       const name = resolveN(nameInOut[1]);
       if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
@@ -465,16 +465,37 @@ export function isGameTopic(title: string): boolean {
   return false;
 }
 
-// ── Single email entry (worker) ──────────────────────────────────────────────
+// ── Unified message parsing ──────────────────────────────────────────────────
+//
+// Single entry point for all email/message parsing: real-time inbound emails,
+// hourly reconciliation poller, and admin backfill. Always applies name
+// resolution and LLM date fallback (when key provided).
 
-export function parseInboundEmail(email: { from: string; subject: string; textBody: string }): EmailParseResult {
-  const senderName = extractSenderName(email.from);
-  const cleaned = stripQuotedText(email.textBody);
+import { llmExtractDate } from "./openrouter";
+
+export async function parseGameMessage(opts: {
+  subject: string;
+  body: string;
+  senderName: string;
+  referenceDate?: string;
+  openrouterKey?: string;
+}): Promise<EmailParseResult> {
+  const cleaned = stripQuotedText(opts.body);
+  const senderName = resolveSender(opts.senderName);
+  const signups = parseSignupsFromMessage(cleaned, senderName, { resolveName, resolveSender });
+  const isGame = isGameTopic(opts.subject);
+  let gameDate = extractGameDate(opts.subject, opts.referenceDate);
+
+  // LLM fallback for date when regex fails on a game-related topic
+  if (!gameDate && isGame && opts.openrouterKey) {
+    gameDate = await llmExtractDate(opts.openrouterKey, opts.subject, cleaned, opts.referenceDate);
+  }
+
   return {
     senderName,
-    signups: parseSignupsFromMessage(cleaned, senderName),
-    gameDate: extractGameDate(email.subject),
-    isGameTopic: isGameTopic(email.subject),
+    signups,
+    gameDate,
+    isGameTopic: isGame,
     rawBody: cleaned.trim(),
   };
 }

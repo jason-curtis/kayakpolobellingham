@@ -6,10 +6,9 @@
  */
 /// <reference types="@cloudflare/workers-types" />
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { parseInboundEmail, isGameTopic, extractGameDate } from "./lib/email-parser";
+import { parseGameMessage, extractSenderName } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
 import { pollForNewMessages } from "./lib/poll-groups-io";
-import { llmExtractDate } from "./lib/openrouter";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -58,27 +57,12 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
 
   async handleEmail(payload: IncomingEmailPayload): Promise<{ ok: boolean; gameId?: string; signupsApplied?: number; error?: string }> {
     try {
-      const result = parseInboundEmail({
-        from: payload.from,
+      const result = await parseGameMessage({
         subject: payload.subject,
-        textBody: payload.textBody ?? "",
+        body: payload.textBody ?? "",
+        senderName: extractSenderName(payload.from),
+        openrouterKey: this.env.OPENROUTER_API_KEY,
       });
-
-      // LLM fallback: if regex couldn't extract date but topic looks game-related, try LLM
-      if (!result.gameDate && result.isGameTopic && this.env.OPENROUTER_API_KEY) {
-        const llmDate = await llmExtractDate(
-          this.env.OPENROUTER_API_KEY,
-          payload.subject,
-          payload.textBody ?? "",
-        );
-        if (llmDate) {
-          result.gameDate = llmDate;
-          logger.info(
-            { event: "llm_date_fallback", subject: payload.subject, llmDate },
-            "LLM extracted game date after regex failed"
-          );
-        }
-      }
 
       logger.info(
         {

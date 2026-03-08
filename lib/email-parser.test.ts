@@ -10,7 +10,7 @@ import {
   parseDateFromTitle,
   parseRosterFromGameOn,
   isBadName,
-  parseInboundEmail,
+  parseGameMessage,
   aggregateTopicsIntoGames,
   isMidweekDate,
   getGameTime,
@@ -101,6 +101,11 @@ describe("parseSignupsFromMessage", () => {
   it("parses Name maybe", () => {
     const withAliases = { resolveName, resolveSender };
     expect(parseSignupsFromMessage("gary maybe", "x", withAliases)).toEqual([{ name: "Gary", status: "maybe" }]);
+  });
+  it("parses 'Name is out' with linking verb", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("Dor is out", "x", withAliases)).toEqual([{ name: "Dorothy", status: "out" }]);
+    expect(parseSignupsFromMessage("Gary is in", "x", withAliases)).toEqual([{ name: "Gary", status: "in" }]);
   });
 });
 
@@ -216,23 +221,23 @@ describe("isBadName", () => {
   });
 });
 
-describe("parseInboundEmail", () => {
-  it("returns senderName, signups, gameDate, isGameTopic from single email", () => {
-    const result = parseInboundEmail({
-      from: "Gary Smith <gary@example.com>",
+describe("parseGameMessage", () => {
+  it("returns senderName, signups, gameDate, isGameTopic from single email", async () => {
+    const result = await parseGameMessage({
       subject: "Sunday 3/2/26 - post in or out",
-      textBody: "I'm in",
+      body: "I'm in",
+      senderName: "Gary Smith",
     });
-    expect(result.senderName).toBe("Gary Smith");
-    expect(result.signups).toEqual([{ name: "Gary Smith", status: "in" }]);
+    expect(result.senderName).toBe("Gary smith");
+    expect(result.signups).toEqual([{ name: "Gary smith", status: "in" }]);
     expect(result.gameDate).toMatch(/2026-03-02/);
     expect(result.isGameTopic).toBe(true);
   });
-  it("returns empty signups and no gameDate for non-game subject", () => {
-    const result = parseInboundEmail({
-      from: "x@y.com",
+  it("returns empty signups and no gameDate for non-game subject", async () => {
+    const result = await parseGameMessage({
       subject: "Unrelated",
-      textBody: "Hello",
+      body: "Hello",
+      senderName: "x",
     });
     expect(result.signups).toEqual([]);
     expect(result.gameDate).toBeNull();

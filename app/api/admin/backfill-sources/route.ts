@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
 import { fetchAllMessages, decodeSnippet, messageUrl } from "@/lib/groups-io-api";
-import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "@/lib/email-parser";
-import { llmExtractDate } from "@/lib/openrouter";
+import { parseGameMessage, resolveName } from "@/lib/email-parser";
 
 const GROUP_ID = 14099;
 
@@ -27,19 +26,19 @@ export async function POST(request: NextRequest) {
     let skipped = 0;
 
     for (const msg of messages) {
-      if (!isGameTopic(msg.subject)) continue;
-
       const snippet = decodeSnippet(msg.snippet);
-      const senderName = resolveSender(msg.name);
-      const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-      let gameDate = extractGameDate(msg.subject, msg.created);
+      const parsed = await parseGameMessage({
+        subject: msg.subject,
+        body: snippet,
+        senderName: msg.name,
+        referenceDate: msg.created,
+        openrouterKey,
+      });
 
-      // LLM fallback for date extraction
-      if (!gameDate && openrouterKey) {
-        gameDate = await llmExtractDate(openrouterKey, msg.subject, snippet);
-      }
+      if (!parsed.isGameTopic || !parsed.gameDate || parsed.signups.length === 0) continue;
 
-      if (!gameDate || signups.length === 0) continue;
+      const gameDate = parsed.gameDate;
+      const signups = parsed.signups;
 
       const sourceUrl = messageUrl(msg.msg_num);
       const note = snippet.slice(0, 200);

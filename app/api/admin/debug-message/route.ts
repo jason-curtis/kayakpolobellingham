@@ -7,10 +7,11 @@ import {
   isGameTopic,
   extractGameDate,
   parseSignupsFromMessage,
+  parseGameMessage,
   resolveName,
   resolveSender,
 } from "@/lib/email-parser";
-import { llmExtractDate, llmParse } from "@/lib/openrouter";
+import { llmExtractDate } from "@/lib/openrouter";
 
 const GROUP_ID = 14099;
 
@@ -69,33 +70,42 @@ export async function POST(request: NextRequest) {
       source = "html-scrape";
     }
 
-    // Run all parsing steps
-    const resolvedSender = resolveSender(senderRaw);
-    const gameTopic = isGameTopic(subject);
+    // Unified parse (same code path as production)
+    const unified = await parseGameMessage({
+      subject,
+      body,
+      senderName: senderRaw,
+      referenceDate: created ?? undefined,
+      openrouterKey,
+    });
+
+    // Also show individual regex steps for debugging comparison
     const dateNoRef = extractGameDate(subject);
     const dateWithRef = created ? extractGameDate(subject, created) : null;
-    const signups = parseSignupsFromMessage(body, senderRaw, { resolveName, resolveSender });
+    const rawSignups = parseSignupsFromMessage(body, senderRaw, { resolveName, resolveSender });
 
-    // LLM results (if key available)
+    // Standalone LLM date (for comparison)
     let llmDate: string | null = null;
-    let llmFull = null;
     if (openrouterKey) {
       try {
-        const ref = created?.slice(0, 10);
-        [llmDate, llmFull] = await Promise.all([
-          llmExtractDate(openrouterKey, subject, body, ref),
-          llmParse(openrouterKey, subject, body, ref),
-        ]);
+        llmDate = await llmExtractDate(openrouterKey, subject, body, created?.slice(0, 10));
       } catch {}
     }
 
     return NextResponse.json({
       source,
-      raw: { msgNum, subject, sender: senderRaw, resolvedSender, body, created },
-      isGameTopic: gameTopic,
-      extractGameDate: { withoutRef: dateNoRef, withRef: dateWithRef, refUsed: created },
-      signups,
-      llm: { extractDate: llmDate, parse: llmFull },
+      raw: { msgNum, subject, sender: senderRaw, resolvedSender: unified.senderName, body, created },
+      unified: {
+        isGameTopic: unified.isGameTopic,
+        gameDate: unified.gameDate,
+        signups: unified.signups,
+        senderName: unified.senderName,
+      },
+      debug: {
+        extractGameDate: { withoutRef: dateNoRef, withRef: dateWithRef, refUsed: created },
+        rawSignups,
+        llmExtractDate: llmDate,
+      },
     });
   } catch (error) {
     return NextResponse.json({ error: "Debug failed", details: String(error) }, { status: 500 });

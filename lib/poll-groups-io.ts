@@ -3,9 +3,8 @@
  * Used as hourly reconciliation to catch anything the email pipeline misses.
  */
 import { fetchRecentMessages, decodeSnippet, messageUrl, type GroupsIoMessage } from "./groups-io-api";
-import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
+import { parseGameMessage, isGameTopic } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
-import { llmExtractDate } from "./openrouter";
 import { logger } from "./logger";
 
 const GROUP_ID = 14099;
@@ -82,20 +81,13 @@ export async function pollForNewMessages(
     }
 
     const snippet = decodeSnippet(msg.snippet);
-    const senderName = resolveSender(msg.name);
-    const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-    let gameDate = extractGameDate(subject, msg.created);
-
-    // LLM fallback for date extraction when regex fails
-    if (!gameDate && openrouterKey) {
-      gameDate = await llmExtractDate(openrouterKey, subject, snippet);
-      if (gameDate) {
-        logger.info(
-          { event: "poll_llm_date", msgNum: msg.msg_num, subject, llmDate: gameDate },
-          "LLM extracted date after regex failed"
-        );
-      }
-    }
+    const result = await parseGameMessage({
+      subject,
+      body: snippet,
+      senderName: msg.name,
+      referenceDate: msg.created,
+      openrouterKey,
+    });
 
     logger.info(
       {
@@ -103,29 +95,23 @@ export async function pollForNewMessages(
         msgNum: msg.msg_num,
         subject,
         sender: msg.name,
-        resolvedSender: senderName,
-        gameDate,
-        signupCount: signups.length,
-        signups,
+        resolvedSender: result.senderName,
+        gameDate: result.gameDate,
+        signupCount: result.signups.length,
+        signups: result.signups,
         snippet,
       },
       "parsed groups.io message"
     );
 
-    if (signups.length === 0 || !gameDate) continue;
+    if (result.signups.length === 0 || !result.gameDate) continue;
 
     try {
-      const result = await applyInboundEmail(db, {
-        senderName,
-        signups,
-        gameDate,
-        isGameTopic: true,
-        rawBody: snippet,
-      }, messageUrl(msg.msg_num), msg.created);
+      const applyResult = await applyInboundEmail(db, result, messageUrl(msg.msg_num), msg.created);
 
-      totalSignups += result.signupsApplied;
-      if (result.gameId && !gamesAffected.includes(result.gameId)) {
-        gamesAffected.push(result.gameId);
+      totalSignups += applyResult.signupsApplied;
+      if (applyResult.gameId && !gamesAffected.includes(applyResult.gameId)) {
+        gamesAffected.push(applyResult.gameId);
       }
     } catch (err) {
       logger.warn(
