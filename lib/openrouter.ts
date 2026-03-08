@@ -35,10 +35,10 @@ export async function llmParse(
     {
       role: "system",
       content: `You parse kayak polo signup emails. Extract structured data from the subject and body.
-Today's date is ${today}. The group plays on Sundays (9AM) and Wednesdays (6PM) in Bellingham, WA.
+Today's date is ${today}. The group plays on Sunday mornings and Wednesday evenings in Bellingham, WA.
 
 Respond with JSON only. Fields:
-- is_signup: true if this is about a game signup/attendance
+- is_signup: true if this is about a game signup/attendance (e.g. "I'm in" or "I'm out" or "I can be there" or "I'm a maybe" or "Joe might make it")
 - game_date: the game date as YYYY-MM-DD, or null if unclear. Resolve relative dates like "next Wednesday" or "this Sunday" relative to today.
 - name: the person's name if a single signup, or null if multiple/unclear
 - status: "in", "out", or "maybe" if they express uncertainty, or null`,
