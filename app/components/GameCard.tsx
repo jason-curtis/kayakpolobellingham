@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { getTimeRemaining, formatCountdown, formatCountdownLong } from '@/lib/countdown';
 import TideChart from './TideChart';
+import WeatherForecast from './WeatherForecast';
 
 export interface SignupEntry {
   name: string;
@@ -189,8 +190,9 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
         )}
       </div>
 
-      {/* Tides */}
+      {/* Tides & Weather */}
       <TideChart date={game.date} gameTime={game.time} />
+      <WeatherForecast date={game.date} gameTime={game.time} />
 
       {/* Signups */}
       <div className="bg-white rounded-lg shadow-lg p-6">

@@ -195,6 +195,21 @@ export default function TideChart({ date, gameTime }: TideChartProps) {
   const twilight = sunTimes(d, LAT, LNG, -12);
   const sun = sunTimes(d, LAT, LNG, 0);
 
+  // Tide at game start/end
+  function tideAtHour(h: number): number | null {
+    for (let i = 0; i < points!.length - 1; i++) {
+      const a = points![i], b = points![i + 1];
+      if (a.hour <= h && b.hour >= h) {
+        const t = (h - a.hour) / (b.hour - a.hour);
+        return a.ft + t * (b.ft - a.ft);
+      }
+    }
+    return null;
+  }
+  const tideStart = tideAtHour(gameStartH);
+  const tideEnd = tideAtHour(gameEndH);
+  const tideDelta = tideStart != null && tideEnd != null ? tideEnd - tideStart : null;
+
   // Build tide curve path
   const pathD = points.map((p, i) => {
     const x = timeToX(p.hour);
@@ -323,6 +338,36 @@ export default function TideChart({ date, gameTime }: TideChartProps) {
           fill="none" stroke="#e5e7eb" strokeWidth="0.5"
         />
       </svg>
+      <div className="flex items-center justify-between mt-2">
+        <div className="flex items-center gap-3 text-xs text-gray-400">
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-2 rounded-sm" style={{ background: '#1e293b', opacity: 0.15 }} />
+            Nautical twilight
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-0.5" style={{ background: '#f59e0b' }} />
+            Sunrise / sunset
+          </span>
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 h-2 rounded-sm" style={{ background: '#3b82f6', opacity: 0.18 }} />
+            Game
+          </span>
+        </div>
+        <a
+          href={`https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9449211&legacy=1&type=hi-lo&datum=MLLW&units=english&beginDate=${date.replace(/-/g, '')}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-xs text-blue-500 hover:underline"
+        >
+          NOAA tides
+        </a>
+      </div>
+      {tideDelta != null && (
+        <p className="text-sm text-gray-500 mt-1">
+          Tide will {tideDelta > 0 ? 'come in' : 'go out'}{' '}
+          {Math.abs(tideDelta).toFixed(1)}ft during game
+        </p>
+      )}
     </div>
   );
 }
