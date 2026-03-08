@@ -98,8 +98,8 @@ export async function fetchTideText(date: string, gameStartH: number, gameEndH: 
     if (startFt == null || endFt == null) return null;
 
     const delta = endFt - startFt;
-    const direction = delta > 0 ? "coming in" : "going out";
-    return `Tide ${direction} from ${startFt.toFixed(1)}ft to ${endFt.toFixed(1)}ft during game`;
+    const verb = delta > 0 ? "flooding" : "ebbing";
+    return `Tide ${verb} ${startFt.toFixed(1)}ft → ${endFt.toFixed(1)}ft during game`;
   } catch {
     return null;
   }
@@ -162,7 +162,7 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
     else if (avgCloud < 80) parts.push("mostly cloudy");
     else parts.push("overcast");
 
-    if (precipMax > 0.01) parts.push(`rain ${precipMax.toFixed(2)}in/hr`);
+    if (precipMax > 0.01) parts.push(`rain ${precipMax.toFixed(2)} in/hr`);
 
     let windText = `wind ${compassDir} ${windStr}mph`;
     if (gustMax > windMax + 5) windText += ` gusts ${gustStr}`;

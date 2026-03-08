@@ -35,7 +35,7 @@ describe("buildBody", () => {
   };
 
   it("includes all sections", () => {
-    const body = buildBody(game, signups, "Tide coming in from 2.1ft to 5.8ft during game\n48°F, clear skies, wind NNE 5mph");
+    const body = buildBody(game, signups, "Tide flooding 2.1ft → 5.8ft during game\n48°F, clear skies, wind NNE 5mph");
 
     // Header
     expect(body).toContain("Sunday 8/3 — Game on!");
@@ -55,15 +55,15 @@ describe("buildBody", () => {
 
     // Conditions
     expect(body).toContain("CONDITIONS:");
-    expect(body).toContain("Tide coming in");
+    expect(body).toContain("Tide flooding");
     expect(body).toContain("48°F");
 
-    // Game info
-    expect(body).toContain("Time: 9:00 AM");
-    expect(body).toContain("Location: Bloedel Donovan Park");
+    // Game permalink
+    expect(body).toContain("https://kayakpolosignups.option-zero.workers.dev/game/game-123");
 
-    // Permalink
-    expect(body).toContain("https://kayakpolosignups.option-zero.workers.dev");
+    // No time/location
+    expect(body).not.toContain("Time:");
+    expect(body).not.toContain("Location:");
 
     // Bot disclaimer
     expect(body).toContain("automated message");
@@ -81,16 +81,9 @@ describe("buildBody", () => {
     expect(body).toContain("IN:");
   });
 
-  it("formats PM time correctly", () => {
-    const pmGame = { ...game, time: "17:30" };
-    const body = buildBody(pmGame, signups, "Conditions unavailable");
-    expect(body).toContain("Time: 5:30 PM");
-  });
-
-  it("formats 18:00 time correctly", () => {
-    const pmGame = { ...game, time: "18:00" };
-    const body = buildBody(pmGame, signups, "Conditions unavailable");
-    expect(body).toContain("Time: 6:00 PM");
+  it("includes game permalink with game id", () => {
+    const body = buildBody(game, signups, "Conditions unavailable");
+    expect(body).toContain("/game/game-123");
   });
 });
 

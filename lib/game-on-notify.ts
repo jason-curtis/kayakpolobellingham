@@ -41,14 +41,6 @@ function ddMm(dateStr: string): string {
   return `${parseInt(d)}/${parseInt(m)}`;
 }
 
-/** Format game time for display. */
-function formatTime(time: string): string {
-  const [h, m] = time.split(":").map(Number);
-  const ampm = h < 12 ? "AM" : "PM";
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${m.toString().padStart(2, "0")} ${ampm}`;
-}
-
 /** Build the email subject. */
 export function buildSubject(date: string): string {
   return `${dayOfWeek(date)} ${ddMm(date)} game on!`;
@@ -91,11 +83,8 @@ export function buildBody(
   for (const line of conditions.split("\n")) lines.push(`  ${line}`);
   lines.push("");
 
-  // Game info
-  lines.push(`Time: ${formatTime(game.time)}`);
-  lines.push(`Location: Bloedel Donovan Park`);
-  lines.push("");
-  lines.push(`${SITE_URL}`);
+  // Permalink
+  lines.push(`${SITE_URL}/game/${game.id}`);
   lines.push("");
   lines.push("---");
   lines.push("This is an automated message sent when the 6th player signed up.");
