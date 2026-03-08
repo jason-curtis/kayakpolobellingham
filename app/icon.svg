@@ -1,19 +1,90 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Water splash behind ball -->
-  <path d="M4 22 Q6 17 10 20 Q13 14 16 19 Q19 14 22 20 Q26 17 28 22" fill="none" stroke="#4AA8D8" stroke-width="1.8" stroke-linecap="round"/>
-  <path d="M2 25 Q5 21 9 23 Q12 18 16 22 Q20 18 23 23 Q27 21 30 25" fill="none" stroke="#6BC4E8" stroke-width="1.4" stroke-linecap="round"/>
-  <!-- Water drops -->
-  <circle cx="7" cy="16" r="1.2" fill="#4AA8D8" opacity="0.7"/>
-  <circle cx="25" cy="15" r="1" fill="#4AA8D8" opacity="0.6"/>
-  <circle cx="5" cy="19" r="0.8" fill="#6BC4E8" opacity="0.5"/>
-  <!-- Ball body -->
-  <circle cx="16" cy="14" r="9.5" fill="#F5C542"/>
-  <circle cx="16" cy="14" r="9.5" fill="none" stroke="#D4A017" stroke-width="0.8"/>
-  <!-- Ball seam lines -->
-  <path d="M16 4.5 Q12 9 12 14 Q12 19 16 23.5" fill="none" stroke="#D4A017" stroke-width="0.7"/>
-  <path d="M16 4.5 Q20 9 20 14 Q20 19 16 23.5" fill="none" stroke="#D4A017" stroke-width="0.7"/>
-  <path d="M6.5 14 Q11 11 16 11 Q21 11 25.5 14" fill="none" stroke="#D4A017" stroke-width="0.7"/>
-  <path d="M6.5 14 Q11 17 16 17 Q21 17 25.5 14" fill="none" stroke="#D4A017" stroke-width="0.7"/>
-  <!-- Highlight -->
-  <ellipse cx="12.5" cy="10.5" rx="3" ry="2" fill="white" opacity="0.25"/>
+  <defs>
+    <!-- Vibrant, high-contrast ball gradient for a 3D feel -->
+    <radialGradient id="ballGrad" cx="35%" cy="30%" r="75%">
+      <stop offset="0%" stop-color="#FFF176" />
+      <stop offset="30%" stop-color="#FFD54F" />
+      <stop offset="70%" stop-color="#F57F17" />
+      <stop offset="100%" stop-color="#BF360C" />
+    </radialGradient>
+    
+    <!-- Water splash gradient with transparency -->
+    <linearGradient id="waterGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="white" />
+      <stop offset="0.4" stop-color="#81D4FA" stop-opacity="0.8" />
+      <stop offset="1" stop-color="#0277BD" stop-opacity="0.3" />
+    </linearGradient>
+
+    <!-- Subtle glow for the water to make it "alive" -->
+    <filter id="splashGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="0.4" result="blur" />
+      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+    </filter>
+  </defs>
+
+  <!-- Background "Energy" / Motion lines -->
+  <g stroke="#E1F5FE" stroke-width="0.5" opacity="0.4">
+    <path d="M5 10 L 8 13" />
+    <path d="M27 10 L 24 13" />
+    <path d="M16 5 L 16 8" />
+  </g>
+
+  <!-- Explosive Splash (Behind Ball) -->
+  <g filter="url(#splashGlow)">
+    <path d="M2 30 C 4 15, 10 5, 16 8 C 22 5, 28 15, 30 30" fill="url(#waterGrad)" opacity="0.7" />
+    <!-- Dynamic Spray Paths -->
+    <path d="M6 25 Q 10 10, 14 20 Q 16 5, 18 20 Q 22 10, 26 25" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.9" />
+  </g>
+
+  <!-- The Water Polo Ball: Dynamic Tilt & Action -->
+  <g transform="translate(16, 15) rotate(-20)">
+    <!-- Main sphere -->
+    <circle cx="0" cy="0" r="10.5" fill="url(#ballGrad)" />
+    
+    <!-- Volleyball-style Seams (18-panel Mikasa pattern) -->
+    <!-- We're looking at a vertical-strip panel group head-on -->
+    <g stroke="#BF360C" stroke-width="0.55" fill="none" stroke-linecap="round" opacity="0.85">
+      <!-- Vertical strips (divided into 3) -->
+      <path d="M-3.5 -9.8 L -3.5 9.8" />
+      <path d="M3.5 -9.8 L 3.5 9.8" />
+      
+      <!-- Horizontal strips on the left/right "sides" -->
+      <path d="M-10.2 -3.4 L -3.5 -3.4" />
+      <path d="M-10.2 3.4 L -3.5 3.4" />
+      <path d="M3.5 -3.4 L 10.2 -3.4" />
+      <path d="M3.5 3.4 L 10.2 3.4" />
+      
+      <!-- Top/Bottom boundary curves -->
+      <path d="M-3.5 -9.8 C -1 -10.5, 1 -10.5, 3.5 -9.8" />
+      <path d="M-3.5 9.8 C -1 10.5, 1 10.5, 3.5 9.8" />
+    </g>
+
+    <!-- Professional Lighting & Reflections -->
+    <ellipse cx="-4" cy="-5" rx="5" ry="2.5" fill="white" opacity="0.3" transform="rotate(-30, -4, -5)" />
+    <circle cx="-5.5" cy="-6" r="1.5" fill="white" opacity="0.5" />
+    <!-- Bottom bounce light -->
+    <path d="M-5 8 Q 0 10, 5 8" stroke="white" stroke-width="0.6" opacity="0.2" fill="none" />
+  </g>
+
+  <!-- Foreground Splash: Droplets and "Eruption" -->
+  <g fill="white">
+    <!-- Erupting foam at the base -->
+    <path d="M8 32 Q 12 16, 16 25 Q 20 16, 24 32" opacity="0.9" />
+    
+    <!-- Kinetic Droplets -->
+    <!-- Left side -->
+    <circle cx="5" cy="18" r="1.4" />
+    <path d="M4 14 L 4.5 12 Q 5 11, 5.5 12 L 6 14 Z" opacity="0.8" /> <!-- Teardrop -->
+    <!-- Right side -->
+    <circle cx="27" cy="20" r="1.6" />
+    <circle cx="29" cy="12" r="0.8" />
+    <!-- Center/Top -->
+    <circle cx="16" cy="18" r="1" />
+    <circle cx="21" cy="15" r="0.7" />
+    <path d="M12 10 L 11.5 8 Q 11 7, 10.5 8 L 10 10 Z" opacity="0.6" />
+
+    <!-- Smaller scattered mist -->
+    <circle cx="8" cy="12" r="0.5" opacity="0.5" />
+    <circle cx="24" cy="14" r="0.5" opacity="0.5" />
+  </g>
 </svg>
