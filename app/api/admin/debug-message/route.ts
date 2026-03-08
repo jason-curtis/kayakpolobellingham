@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       if (msg) {
         subject = msg.subject;
         senderRaw = msg.name;
-        body = decodeSnippet(msg.snippet || msg.body || "");
+        body = decodeSnippet(msg.body || msg.snippet || "");
         created = msg.created;
         source = "api";
       }

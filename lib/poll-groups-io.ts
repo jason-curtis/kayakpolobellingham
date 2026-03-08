@@ -82,7 +82,7 @@ export async function pollForNewMessages(
       continue;
     }
 
-    const snippet = decodeSnippet(msg.snippet);
+    const snippet = decodeSnippet(msg.body || msg.snippet);
     const result = await parseGameMessage({
       subject,
       body: snippet,
