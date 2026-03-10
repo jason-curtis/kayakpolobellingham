@@ -98,6 +98,11 @@ export async function fetchTideText(date: string, gameStartH: number, gameEndH: 
     if (startFt == null || endFt == null) return null;
 
     const delta = endFt - startFt;
+    const absDelta = Math.abs(delta);
+    if (absDelta < 0.75) {
+      const avg = (startFt + endFt) / 2;
+      return `Tide steady ~${avg.toFixed(1)}ft during game`;
+    }
     const verb = delta > 0 ? "flooding" : "ebbing";
     return `Tide ${verb} ${startFt.toFixed(1)}ft → ${endFt.toFixed(1)}ft during game`;
   } catch {

@@ -117,18 +117,17 @@ function interpolateTides(hiloPoints: { hour: number; ft: number }[], step: numb
   return result;
 }
 
-// ── Wind vane arrow (points in the direction wind blows FROM) ─────────────
+// ── Wind arrow (points in the direction wind blows TO) ────────────────────
 
 function WindArrow({ dir, size = 18 }: { dir: number; size?: number }) {
   // dir = meteorological degrees (direction wind comes FROM)
-  // Arrow points downward by default (wind from north blows south),
-  // rotated by dir so it points in the direction the wind is coming from
+  // Add 180° so arrow points the direction wind is going (conventional display)
   return (
     <svg width={size} height={size} viewBox="0 0 20 20" style={{ display: 'inline-block', verticalAlign: 'middle' }}>
-      <g transform={`rotate(${dir}, 10, 10)`}>
+      <g transform={`rotate(${dir + 180}, 10, 10)`}>
         {/* Staff */}
         <line x1="10" y1="3" x2="10" y2="17" stroke="#6b7280" strokeWidth="1.5" strokeLinecap="round" />
-        {/* Arrowhead pointing up (into the wind) */}
+        {/* Arrowhead */}
         <polygon points="10,3 7,8 13,8" fill="#6b7280" />
       </g>
     </svg>
@@ -383,6 +382,15 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
         const startFt = tideAtHourSummary(gameStartH);
         const endFt = tideAtHourSummary(gameEndH);
         if (startFt == null || endFt == null) return null;
+        const absDelta = Math.abs(tideDelta);
+        if (absDelta < 0.75) {
+          const avg = (startFt + endFt) / 2;
+          return (
+            <p className="text-sm text-gray-500 mt-1">
+              Tide steady ~{avg.toFixed(1)}ft during game
+            </p>
+          );
+        }
         const verb = tideDelta > 0 ? 'flooding' : 'ebbing';
         return (
           <p className="text-sm text-gray-500 mt-1">
@@ -442,7 +450,7 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
               </tr>
             </tbody>
           </table>
-          <p className="text-xs text-gray-400 mt-1">Wind in mph · Rain in inches/hr · Arrows show wind direction</p>
+          <p className="text-xs text-gray-400 mt-1">Wind in mph · Rain in inches/hr · Arrows show direction wind blows</p>
         </div>
       )}
     </div>
