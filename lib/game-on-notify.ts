@@ -6,7 +6,7 @@ import { fetchConditionsText } from "./conditions-text";
 import { logger } from "./logger";
 
 const GAME_ON_THRESHOLD = 6;
-const SITE_URL = "https://kayakpolosignups.option-zero.workers.dev";
+const SITE_URL = "https://kayakpolobellingham.com";
 const GROUP_EMAIL = "kayakpolobellingham@groups.io";
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -41,9 +41,14 @@ function ddMm(dateStr: string): string {
   return `${parseInt(d)}/${parseInt(m)}`;
 }
 
-/** Build the email subject. */
+/** Build the game-on email subject. */
 export function buildSubject(date: string): string {
   return `${dayOfWeek(date)} ${ddMm(date)} game on!`;
+}
+
+/** Build the conditions report email subject. */
+export function buildConditionsSubject(date: string): string {
+  return `${dayOfWeek(date)} ${ddMm(date)} game conditions report`;
 }
 
 /** Build the email body. */
@@ -88,6 +93,49 @@ export function buildBody(
   lines.push("");
   lines.push("---");
   lines.push("This is an automated message sent when the 6th player signed up.");
+
+  return lines.join("\n");
+}
+
+/** Build the conditions report email body. */
+export function buildConditionsBody(
+  game: GameInfo,
+  signups: SignupList,
+  conditions: string,
+): string {
+  const lines: string[] = [];
+
+  lines.push(`${dayOfWeek(game.date)} ${ddMm(game.date)} — Game conditions report`);
+  lines.push("");
+
+  // Conditions first for this report type
+  lines.push("CONDITIONS:");
+  for (const line of conditions.split("\n")) lines.push(`  ${line}`);
+  lines.push("");
+
+  // Who's in
+  if (signups.in.length > 0) {
+    lines.push("IN:");
+    for (const p of signups.in) lines.push(`  ${p.name}`);
+    lines.push("");
+  }
+
+  // Who's maybe
+  if (signups.maybe.length > 0) {
+    lines.push("MAYBE:");
+    for (const p of signups.maybe) lines.push(`  ${p.name}`);
+    lines.push("");
+  }
+
+  // Who's out
+  if (signups.out.length > 0) {
+    lines.push("OUT:");
+    for (const p of signups.out) lines.push(`  ${p.name}`);
+    lines.push("");
+  }
+
+  // Permalink
+  lines.push(`${SITE_URL}/games/${game.id}`);
 
   return lines.join("\n");
 }

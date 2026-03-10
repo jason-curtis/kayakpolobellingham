@@ -42,7 +42,7 @@ interface ScrapeLatest {
   signups_inserted: number;
 }
 
-const VALID_TABS: Tab[] = ['games', 'regulars', 'scrape', 'debug'];
+const VALID_TABS: Tab[] = ['games', 'regulars', 'scrape', 'debug', 'notify'];
 
 function AdminContent() {
   const router = useRouter();
@@ -136,9 +136,13 @@ function AdminContent() {
   const [debugLoading, setDebugLoading] = useState(false);
   const [debugResult, setDebugResult] = useState<any>(null);
 
-  // Notify preview state
+  // Notify state
   const [notifyPreview, setNotifyPreview] = useState<any>(null);
   const [notifyLoading, setNotifyLoading] = useState(false);
+  const [notifyType, setNotifyType] = useState<'game_on' | 'conditions'>('game_on');
+  const [notifyGameDate, setNotifyGameDate] = useState('');
+  const [notifySending, setNotifySending] = useState(false);
+  const [notifySent, setNotifySent] = useState<string | null>(null);
 
   const setDebugUrl = useCallback((url: string) => {
     setDebugUrlState(url);
@@ -1126,21 +1130,54 @@ function AdminContent() {
           </div>
         )}
 
-        {/* Notify Preview Tab */}
+        {/* Notify Tab */}
         {tab === 'notify' && (
           <div className="bg-white rounded-lg shadow-lg p-6">
             <h2 className="text-xl font-bold text-gray-900 mb-4">
-              📧 Notification Preview
+              Send Email
             </h2>
-            <p className="text-gray-600 mb-4">
-              Preview the game-on notification email for the next upcoming game.
-            </p>
+
+            {/* Email type picker */}
+            <div className="flex gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => { setNotifyType('game_on'); setNotifyPreview(null); setNotifySent(null); }}
+                className={`px-3 py-1.5 rounded font-medium text-sm ${notifyType === 'game_on' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Game On
+              </button>
+              <button
+                type="button"
+                onClick={() => { setNotifyType('conditions'); setNotifyPreview(null); setNotifySent(null); }}
+                className={`px-3 py-1.5 rounded font-medium text-sm ${notifyType === 'conditions' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              >
+                Conditions Report
+              </button>
+            </div>
+
+            {/* Game date selector */}
+            <div className="mb-4">
+              <label className="block text-sm font-medium text-gray-700 mb-1">Game date</label>
+              <input
+                type="date"
+                value={notifyGameDate}
+                onChange={(e) => { setNotifyGameDate(e.target.value); setNotifyPreview(null); setNotifySent(null); }}
+                className="border rounded px-3 py-1.5 text-sm text-gray-900 w-48"
+              />
+              <span className="text-xs text-gray-500 ml-2">Leave empty for next upcoming game</span>
+            </div>
+
+            {/* Preview button */}
             <button
               type="button"
               onClick={async () => {
                 setNotifyLoading(true);
+                setNotifySent(null);
                 try {
-                  const res = await fetch('/api/admin/preview-notification');
+                  const params = new URLSearchParams();
+                  if (notifyGameDate) params.set('date', notifyGameDate);
+                  params.set('type', notifyType);
+                  const res = await fetch(`/api/admin/preview-notification?${params}`);
                   const data = await res.json();
                   setNotifyPreview(data);
                 } catch (err) {
@@ -1152,16 +1189,17 @@ function AdminContent() {
               disabled={notifyLoading}
               className="px-4 py-2 bg-blue-600 text-white rounded font-semibold hover:bg-blue-700 disabled:bg-gray-400 mb-4"
             >
-              {notifyLoading ? 'Loading...' : 'Load Preview'}
+              {notifyLoading ? 'Loading preview...' : 'Preview'}
             </button>
 
+            {/* Preview display */}
             {notifyPreview && !notifyPreview.error && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 text-sm text-gray-600">
                   <span>Game: <code className="bg-gray-100 px-1 rounded">{notifyPreview.date}</code></span>
                   <span>In: <strong>{notifyPreview.inCount}</strong></span>
-                  {notifyPreview.alreadySent && (
-                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">Already sent</span>
+                  {notifyPreview.alreadySent && notifyType === 'game_on' && (
+                    <span className="px-2 py-0.5 bg-yellow-100 text-yellow-800 rounded text-xs font-semibold">Game-on already sent</span>
                   )}
                 </div>
                 <div className="border rounded p-4 bg-gray-50">
@@ -1172,6 +1210,39 @@ function AdminContent() {
                   <div className="text-xs text-gray-400 mb-1">Body</div>
                   <pre className="text-sm text-gray-800 whitespace-pre-wrap font-mono">{notifyPreview.body}</pre>
                 </div>
+
+                {/* Send button */}
+                {notifySent ? (
+                  <div className="bg-green-100 border border-green-400 text-green-800 px-4 py-2 rounded text-sm font-semibold">
+                    Sent: {notifySent}
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      if (!confirm(`Send this ${notifyType === 'conditions' ? 'conditions report' : 'game-on'} email to groups.io?`)) return;
+                      setNotifySending(true);
+                      try {
+                        const res = await fetch('/api/admin/send-notification', {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ gameId: notifyPreview.gameId, type: notifyType }),
+                        });
+                        const data = await res.json();
+                        if (!res.ok) throw new Error(data.error || 'Send failed');
+                        setNotifySent(data.subject);
+                      } catch (err) {
+                        setError(err instanceof Error ? err.message : 'Send failed');
+                      } finally {
+                        setNotifySending(false);
+                      }
+                    }}
+                    disabled={notifySending}
+                    className="px-4 py-2 bg-green-600 text-white rounded font-semibold hover:bg-green-700 disabled:bg-gray-400"
+                  >
+                    {notifySending ? 'Sending...' : 'Send to groups.io'}
+                  </button>
+                )}
               </div>
             )}
 

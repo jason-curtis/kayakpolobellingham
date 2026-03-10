@@ -2,7 +2,7 @@
 
 Web app that tracks weekly kayak polo game signups. Players sign up via Groups.io email threads; the app parses those emails, tallies signups, and shows game status. 6+ players = game on.
 
-Production: https://kayakpolosignups.option-zero.workers.dev
+Production: https://kayakpolobellingham.com
 
 ## How It Works
 

@@ -59,7 +59,7 @@ describe("buildBody", () => {
     expect(body).toContain("48°F");
 
     // Game permalink
-    expect(body).toContain("https://kayakpolosignups.option-zero.workers.dev/games/game-123");
+    expect(body).toContain("https://kayakpolobellingham.com/games/game-123");
 
     // No time/location
     expect(body).not.toContain("Time:");

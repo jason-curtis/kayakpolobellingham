@@ -3,39 +3,40 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
 import { buildSubject, buildBody, buildConditionsSubject, buildConditionsBody } from "@/lib/game-on-notify";
 import { fetchConditionsText } from "@/lib/conditions-text";
+import { createGroupsIoSender } from "@/lib/send-email";
 
-export async function GET(request: NextRequest) {
+const GROUP_EMAIL = "kayakpolobellingham@groups.io";
+
+export async function POST(request: NextRequest) {
   const authError = requireAdmin(request);
   if (authError) return authError;
 
   try {
-    const { env } = await getCloudflareContext();
-    const db = (env as any).D1_DB;
+    const { gameId, type } = await request.json() as { gameId: string; type: string };
 
-    const url = new URL(request.url);
-    const dateParam = url.searchParams.get("date");
-    const type = url.searchParams.get("type") || "game_on";
-
-    // Find game by date or next upcoming
-    let game: { id: string; date: string; time: string; game_on_notified: number } | null;
-
-    if (dateParam) {
-      game = await db
-        .prepare("SELECT id, date, time, game_on_notified FROM games WHERE date = ? LIMIT 1")
-        .bind(dateParam)
-        .first();
-    } else {
-      const today = new Date().toISOString().split("T")[0];
-      game = await db
-        .prepare(
-          "SELECT id, date, time, game_on_notified FROM games WHERE date >= ? ORDER BY date ASC LIMIT 1",
-        )
-        .bind(today)
-        .first();
+    if (!gameId) {
+      return NextResponse.json({ error: "gameId is required" }, { status: 400 });
+    }
+    if (!type || !["game_on", "conditions"].includes(type)) {
+      return NextResponse.json({ error: "type must be 'game_on' or 'conditions'" }, { status: 400 });
     }
 
+    const { env } = await getCloudflareContext();
+    const db = (env as any).D1_DB;
+    const apiKey = (env as any).GROUPS_IO_API_KEY as string;
+
+    if (!apiKey) {
+      return NextResponse.json({ error: "GROUPS_IO_API_KEY not configured" }, { status: 500 });
+    }
+
+    // Fetch game
+    const game = await db
+      .prepare("SELECT id, date, time, game_on_notified FROM games WHERE id = ?")
+      .bind(gameId)
+      .first() as { id: string; date: string; time: string; game_on_notified: number } | null;
+
     if (!game) {
-      return NextResponse.json({ error: dateParam ? `No game found for ${dateParam}` : "No upcoming games" }, { status: 404 });
+      return NextResponse.json({ error: "Game not found" }, { status: 404 });
     }
 
     // Get signups
@@ -50,7 +51,7 @@ export async function GET(request: NextRequest) {
       maybe: signupRows.filter(s => s.status === "maybe").map(s => ({ name: s.player_name })),
     };
 
-    // Fetch live conditions
+    // Fetch conditions
     let conditions: string;
     try {
       conditions = await fetchConditionsText(game.date, game.time);
@@ -58,6 +59,7 @@ export async function GET(request: NextRequest) {
       conditions = "Conditions unavailable";
     }
 
+    // Build email
     const subject = type === "conditions"
       ? buildConditionsSubject(game.date)
       : buildSubject(game.date);
@@ -65,15 +67,12 @@ export async function GET(request: NextRequest) {
       ? buildConditionsBody(game, signups, conditions)
       : buildBody(game, signups, conditions);
 
-    return NextResponse.json({
-      gameId: game.id,
-      date: game.date,
-      inCount: signups.in.length,
-      alreadySent: !!game.game_on_notified,
-      subject,
-      body,
-    });
+    // Send
+    const sendEmail = createGroupsIoSender(apiKey);
+    await sendEmail(GROUP_EMAIL, subject, body);
+
+    return NextResponse.json({ sent: true, subject });
   } catch (error) {
-    return NextResponse.json({ error: "Preview failed", details: String(error) }, { status: 500 });
+    return NextResponse.json({ error: "Send failed", details: String(error) }, { status: 500 });
   }
 }

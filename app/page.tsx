@@ -184,16 +184,24 @@ export default function Home() {
         )}
 
         {/* Footer Links */}
-        <div className="text-center mt-8 space-x-4">
-          <a href="/history" className="text-white hover:text-blue-200 underline text-sm">
-            Game History
-          </a>
-          <a href="/stats" className="text-white hover:text-blue-200 underline text-sm">
-            Stats
-          </a>
-          <a href="/admin" className="text-white hover:text-blue-200 underline text-sm">
-            Admin
-          </a>
+        <div className="text-center mt-8 space-y-2">
+          <div className="space-x-4">
+            <a href="/history" className="text-white hover:text-blue-200 underline text-sm">
+              Game History
+            </a>
+            <a href="/stats" className="text-white hover:text-blue-200 underline text-sm">
+              Stats
+            </a>
+            <a href="https://groups.io/g/kayakpolobellingham" className="text-white hover:text-blue-200 underline text-sm" target="_blank" rel="noopener noreferrer">
+              Groups.io
+            </a>
+            <a href="/admin" className="text-white hover:text-blue-200 underline text-sm">
+              Admin
+            </a>
+          </div>
+          <div className="text-blue-200/60 text-xs">
+            code by <a href="https://optionzero.co" className="hover:text-blue-100 underline" target="_blank" rel="noopener noreferrer">Option Zero</a>
+          </div>
         </div>
       </div>
     </div>
