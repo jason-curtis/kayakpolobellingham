@@ -43,7 +43,7 @@
     
     <!-- Volleyball-style Seams (18-panel Mikasa pattern) -->
     <!-- We're looking at a vertical-strip panel group head-on -->
-    <g stroke="#BF360C" stroke-width="0.55" fill="none" stroke-linecap="round" opacity="0.85">
+    <g stroke="#BF360C" stroke-width="1" fill="none" stroke-linecap="round" opacity="0.55">
       <!-- Vertical strips (divided into 3) -->
       <path d="M-3.5 -9.8 L -3.5 9.8" />
       <path d="M3.5 -9.8 L 3.5 9.8" />
@@ -76,7 +76,7 @@
     <circle cx="5" cy="12" r="3" />
     <path d="M4 14 L 4.5 12 Q 5 11, 5.5 12 L 6 14 Z" opacity="0.8" /> <!-- Teardrop -->
     <!-- Right side -->
-    <circle cx="27" cy="20" r="6" opacity="0.5"/>
+    <circle cx="25" cy="22" r="6" opacity="0.8"/>
     <circle cx="29" cy="12" r="1.2" />
     <!-- Center/Top -->
     <circle cx="16" cy="18" r="2" />
