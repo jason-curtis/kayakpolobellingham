@@ -189,6 +189,11 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
       continue;
     }
+    // "I can make 5:30" / "I can do it" / "should work for me" / "I can also make it"
+    if (/\bi\s+can\s+(?:make|do)\b/.test(lower) || /\bshould\s+work\s+for\s+me\b/.test(lower) || /\bi\s+can\s+also\s+make\s+it\b/.test(lower)) {
+      if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
+      continue;
+    }
     if (/\bi'?m\s+out\b/.test(lower) || /\bi'?m\s+a?\s*no\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
@@ -207,6 +212,16 @@ export function parseSignupsFromMessage(
       if (n1 && !isStopWord(n1.toLowerCase())) results.push({ name: n1, status: st });
       if (n2 && !isStopWord(n2.toLowerCase())) results.push({ name: n2, status: st });
       continue;
+    }
+
+    // "Name can make/do [time]" → Name is in
+    const nameCanMake = lower.match(/^([a-z][a-z'\-]{1,15})\s+can\s+(?:make|do)\b/);
+    if (nameCanMake) {
+      const name = resolveN(nameCanMake[1]);
+      if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
+        results.push({ name, status: "in" });
+        continue;
+      }
     }
 
     const nameInOut = lower.match(/^([a-z][a-z'\-]{1,15})\s+(?:is\s+|will\s+be\s+)?(in|out|maybe)\b/);

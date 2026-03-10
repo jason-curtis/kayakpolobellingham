@@ -1035,16 +1035,27 @@ function AdminContent() {
                 {/* LLM results */}
                 <div className="border rounded p-4 bg-gray-50">
                   <h3 className="font-bold text-gray-900 mb-2">LLM (Gemini Flash Lite)</h3>
-                  {!debugResult.debug.llmParse ? (
-                    <p className="text-sm text-gray-500">No LLM results (OPENROUTER_API_KEY not set or request failed)</p>
-                  ) : (
+                  {debugResult.debug.llmParse?._debug?.error ? (
+                    <div className="text-sm space-y-2">
+                      <p className="text-red-600 font-semibold">{debugResult.debug.llmParse._debug.error}</p>
+                      {debugResult.debug.llmParse._debug.raw_response && (
+                        <pre className="bg-white border rounded p-2 text-xs whitespace-pre-wrap max-h-20 overflow-y-auto">{debugResult.debug.llmParse._debug.raw_response}</pre>
+                      )}
+                      {debugResult.debug.llmParse._debug.model && (
+                        <div className="text-gray-500">Model: {debugResult.debug.llmParse._debug.model} · {debugResult.debug.llmParse._debug.latency_ms}ms</div>
+                      )}
+                    </div>
+                  ) : debugResult.debug.llmParse ? (
                     <div className="text-sm text-gray-700 space-y-2">
                       <div><span className="font-semibold">game_date:</span> <code className="bg-white px-1 rounded">{debugResult.debug.llmParse.game_date ?? 'null'}</code></div>
                       <div>
-                        <span className="font-semibold">llmParse:</span>
+                        <span className="font-semibold">Result:</span>
                         <pre className="bg-white border rounded p-2 text-xs mt-1">{JSON.stringify(debugResult.debug.llmParse, null, 2)}</pre>
                       </div>
+                      <div className="text-gray-500">Model: {debugResult.debug.llmParse._debug?.model} · {debugResult.debug.llmParse._debug?.latency_ms}ms</div>
                     </div>
+                  ) : (
+                    <p className="text-sm text-gray-500">No LLM results</p>
                   )}
                 </div>
 

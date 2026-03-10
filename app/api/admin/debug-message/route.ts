@@ -11,7 +11,7 @@ import {
   resolveName,
   resolveSender,
 } from "@/lib/email-parser";
-import { llmParse } from "@/lib/openrouter";
+import { llmParseDebug } from "@/lib/openrouter";
 import { applyInboundEmail } from "@/lib/apply-inbound-email";
 
 const GROUP_ID = 14099;
@@ -86,12 +86,21 @@ export async function POST(request: NextRequest) {
     const dateWithRef = created ? extractGameDate(subject, created) : null;
     const rawSignups = parseSignupsFromMessage(body, senderRaw, { resolveName, resolveSender });
 
-    // Standalone LLM parse (for comparison)
-    let llmResult = null;
+    // Standalone LLM parse (for comparison) — always show diagnostic info
+    let llmResult: Record<string, unknown> | null = null;
     if (openrouterKey) {
-      try {
-        llmResult = await llmParse(openrouterKey, subject, body, created?.slice(0, 10));
-      } catch {}
+      const debug = await llmParseDebug(openrouterKey, subject, body, created?.slice(0, 10));
+      llmResult = {
+        ...debug.result,
+        _debug: {
+          error: debug.error,
+          raw_response: debug.raw_response,
+          model: debug.model,
+          latency_ms: debug.latency_ms,
+        },
+      };
+    } else {
+      llmResult = { _debug: { error: "OPENROUTER_API_KEY not configured", model: null, latency_ms: 0 } };
     }
 
     // Apply to D1 if requested

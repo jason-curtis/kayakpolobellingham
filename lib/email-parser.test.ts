@@ -107,6 +107,21 @@ describe("parseSignupsFromMessage", () => {
     expect(parseSignupsFromMessage("Dor is out", "x", withAliases)).toEqual([{ name: "Dorothy", status: "out" }]);
     expect(parseSignupsFromMessage("Gary is in", "x", withAliases)).toEqual([{ name: "Gary", status: "in" }]);
   });
+  it("parses 'I can make/do [time]' as in", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("I can do 5:30", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
+    expect(parseSignupsFromMessage("I can make it", "Dorothy Burke", withAliases)).toEqual([{ name: "Dorothy", status: "in" }]);
+    expect(parseSignupsFromMessage("I can also make it for 5:30", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
+  });
+  it("parses 'Name can make [time]' as in", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("Glenn can make 5:30", "x", withAliases)).toEqual([{ name: "Glenn", status: "in" }]);
+    expect(parseSignupsFromMessage("Paul can make it for 2 or 3 weeks at 530", "x", withAliases)).toEqual([{ name: "Paul", status: "in" }]);
+  });
+  it("parses 'should work for me' as in", () => {
+    const withAliases = { resolveName, resolveSender };
+    expect(parseSignupsFromMessage("5:30 should work for me", "Mark Lisowski", withAliases)).toEqual([{ name: "Mark", status: "in" }]);
+  });
 });
 
 describe("isMidweekDate", () => {
