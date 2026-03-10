@@ -1,6 +1,6 @@
 /**
  * Email sending via Groups.io API.
- * Uses the groups.io sendmessage endpoint to post directly to the group.
+ * Uses the two-step draft workflow: newdraft → postdraft.
  */
 import { logger } from "./logger";
 
@@ -17,29 +17,55 @@ export function createGroupsIoSender(apiKey: string) {
     subject: string,
     body: string,
   ): Promise<void> {
-    const formData = new URLSearchParams();
-    formData.set("group_id", String(GROUP_ID));
-    formData.set("subject", subject);
-    formData.set("body", body);
+    // Step 1: Create a draft
+    const draftForm = new URLSearchParams();
+    draftForm.set("group_id", String(GROUP_ID));
+    draftForm.set("subject", subject);
+    draftForm.set("body", body);
 
-    const res = await fetch(`${API_BASE}/sendmessage`, {
+    const draftRes = await fetch(`${API_BASE}/newdraft`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${apiKey}`,
         "Content-Type": "application/x-www-form-urlencoded",
       },
-      body: formData.toString(),
+      body: draftForm.toString(),
     });
 
-    if (!res.ok) {
-      const text = await res.text().catch(() => "");
+    if (!draftRes.ok) {
+      const text = await draftRes.text().catch(() => "");
       logger.error(
-        { event: "groupsio_send_error", status: res.status, response: text },
-        "groups.io sendmessage failed",
+        { event: "groupsio_draft_error", status: draftRes.status, response: text },
+        "groups.io newdraft failed",
       );
-      throw new Error(`groups.io sendmessage failed: ${res.status} ${text}`);
+      throw new Error(`groups.io newdraft failed: ${draftRes.status} ${text}`);
     }
 
-    logger.info({ event: "groupsio_send_ok", subject }, "message sent to groups.io");
+    const draft = (await draftRes.json()) as { id: number };
+    logger.info({ event: "groupsio_draft_created", draftId: draft.id, subject }, "draft created");
+
+    // Step 2: Post the draft
+    const postForm = new URLSearchParams();
+    postForm.set("draft_id", String(draft.id));
+
+    const postRes = await fetch(`${API_BASE}/postdraft`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/x-www-form-urlencoded",
+      },
+      body: postForm.toString(),
+    });
+
+    if (!postRes.ok) {
+      const text = await postRes.text().catch(() => "");
+      logger.error(
+        { event: "groupsio_post_error", status: postRes.status, response: text, draftId: draft.id },
+        "groups.io postdraft failed",
+      );
+      throw new Error(`groups.io postdraft failed: ${postRes.status} ${text}`);
+    }
+
+    logger.info({ event: "groupsio_send_ok", subject, draftId: draft.id }, "message sent to groups.io");
   };
 }

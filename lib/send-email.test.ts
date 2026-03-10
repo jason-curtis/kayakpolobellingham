@@ -12,7 +12,13 @@ describe("createGroupsIoSender", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("sends POST to groups.io API with correct params", async () => {
+  it("creates draft then posts it via groups.io API", async () => {
+    // Step 1: newdraft returns a draft with id
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 42 }),
+    });
+    // Step 2: postdraft succeeds
     (globalThis.fetch as any).mockResolvedValueOnce({
       ok: true,
       text: () => Promise.resolve("{}"),
@@ -21,19 +27,28 @@ describe("createGroupsIoSender", () => {
     const sender = createGroupsIoSender("test-api-key");
     await sender("kayakpolobellingham@groups.io", "Sunday 8/3 game on!", "Game on body");
 
-    expect(globalThis.fetch).toHaveBeenCalledOnce();
-    const [url, opts] = (globalThis.fetch as any).mock.calls[0];
-    expect(url).toBe("https://groups.io/api/v1/sendmessage");
-    expect(opts.method).toBe("POST");
-    expect(opts.headers.Authorization).toBe("Bearer test-api-key");
+    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
 
-    const body = new URLSearchParams(opts.body);
-    expect(body.get("group_id")).toBe("14099");
-    expect(body.get("subject")).toBe("Sunday 8/3 game on!");
-    expect(body.get("body")).toBe("Game on body");
+    // Verify newdraft call
+    const [draftUrl, draftOpts] = (globalThis.fetch as any).mock.calls[0];
+    expect(draftUrl).toBe("https://groups.io/api/v1/newdraft");
+    expect(draftOpts.method).toBe("POST");
+    expect(draftOpts.headers.Authorization).toBe("Bearer test-api-key");
+    const draftBody = new URLSearchParams(draftOpts.body);
+    expect(draftBody.get("group_id")).toBe("14099");
+    expect(draftBody.get("subject")).toBe("Sunday 8/3 game on!");
+    expect(draftBody.get("body")).toBe("Game on body");
+
+    // Verify postdraft call
+    const [postUrl, postOpts] = (globalThis.fetch as any).mock.calls[1];
+    expect(postUrl).toBe("https://groups.io/api/v1/postdraft");
+    expect(postOpts.method).toBe("POST");
+    expect(postOpts.headers.Authorization).toBe("Bearer test-api-key");
+    const postBody = new URLSearchParams(postOpts.body);
+    expect(postBody.get("draft_id")).toBe("42");
   });
 
-  it("throws on non-ok response", async () => {
+  it("throws on newdraft failure", async () => {
     (globalThis.fetch as any).mockResolvedValueOnce({
       ok: false,
       status: 403,
@@ -42,7 +57,26 @@ describe("createGroupsIoSender", () => {
 
     const sender = createGroupsIoSender("test-api-key");
     await expect(sender("to@test.com", "Subject", "Body")).rejects.toThrow(
-      "groups.io sendmessage failed: 403 Forbidden"
+      "groups.io newdraft failed: 403 Forbidden"
+    );
+  });
+
+  it("throws on postdraft failure", async () => {
+    // newdraft succeeds
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve({ id: 99 }),
+    });
+    // postdraft fails
+    (globalThis.fetch as any).mockResolvedValueOnce({
+      ok: false,
+      status: 500,
+      text: () => Promise.resolve("Internal error"),
+    });
+
+    const sender = createGroupsIoSender("test-api-key");
+    await expect(sender("to@test.com", "Subject", "Body")).rejects.toThrow(
+      "groups.io postdraft failed: 500 Internal error"
     );
   });
 });
