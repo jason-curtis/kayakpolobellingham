@@ -113,25 +113,17 @@ export function buildConditionsBody(
   for (const line of conditions.split("\n")) lines.push(`  ${line}`);
   lines.push("");
 
-  // Who's in
-  if (signups.in.length > 0) {
-    lines.push("IN:");
-    for (const p of signups.in) lines.push(`  ${p.name}`);
-    lines.push("");
-  }
-
-  // Who's maybe
-  if (signups.maybe.length > 0) {
-    lines.push("MAYBE:");
-    for (const p of signups.maybe) lines.push(`  ${p.name}`);
-    lines.push("");
-  }
-
-  // Who's out
-  if (signups.out.length > 0) {
-    lines.push("OUT:");
-    for (const p of signups.out) lines.push(`  ${p.name}`);
-    lines.push("");
+  const signupCategories = [
+    { label: "IN", signups: signups.in },
+    { label: "MAYBE", signups: signups.maybe },
+    { label: "OUT", signups: signups.out },
+  ]
+  for (const category of signupCategories) {
+    if (category.signups.length > 0) {
+      lines.push(`${category.signups.length} ${category.label}:`);
+      for (const p of category.signups) lines.push(`  ${p.name}`);
+      lines.push("");
+    }
   }
 
   // Permalink
