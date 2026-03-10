@@ -128,7 +128,7 @@ export function buildConditionsBody(
 
   // Permalink
   lines.push(`${SITE_URL}/games/${game.id}`);
-  lines.push(`This is an experimental automated game conditions report.`);
+  lines.push(`This is an automated, experimental game conditions report`);
 
   return lines.join("\n");
 }
