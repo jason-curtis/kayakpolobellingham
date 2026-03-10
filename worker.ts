@@ -6,9 +6,11 @@
  */
 /// <reference types="@cloudflare/workers-types" />
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { parseInboundEmail } from "./lib/email-parser";
+import { parseGameMessage, extractSenderName } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
 import { pollForNewMessages } from "./lib/poll-groups-io";
+import { checkAndNotify } from "./lib/game-on-notify";
+import { createGroupsIoSender } from "./lib/send-email";
 import { logger } from "./lib/logger";
 
 // Generated at build time by opennextjs-cloudflare
@@ -26,6 +28,7 @@ interface Env {
   D1_DB: D1Database;
   ASSETS: Fetcher;
   GROUPS_IO_API_KEY: string;
+  OPENROUTER_API_KEY: string;
 }
 
 export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
@@ -55,10 +58,11 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
 
   async handleEmail(payload: IncomingEmailPayload): Promise<{ ok: boolean; gameId?: string; signupsApplied?: number; error?: string }> {
     try {
-      const result = parseInboundEmail({
-        from: payload.from,
+      const result = await parseGameMessage({
         subject: payload.subject,
-        textBody: payload.textBody ?? "",
+        body: payload.textBody ?? "",
+        senderName: extractSenderName(payload.from),
+        openrouterKey: this.env.OPENROUTER_API_KEY,
       });
 
       logger.info(
@@ -86,6 +90,20 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         { event: "email_applied", gameId: gameId ?? undefined, signupsApplied },
         "parsed signups applied to D1"
       );
+
+      // Check if this signup triggered game-on threshold
+      if (gameId && this.env.GROUPS_IO_API_KEY) {
+        try {
+          const sendEmail = createGroupsIoSender(this.env.GROUPS_IO_API_KEY);
+          await checkAndNotify(db, gameId, sendEmail);
+        } catch (err) {
+          logger.warn(
+            { event: "game_on_check_error", gameId, error: String(err) },
+            "game-on notification check failed (non-fatal)",
+          );
+        }
+      }
+
       return { ok: true, gameId: gameId ?? undefined, signupsApplied };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
