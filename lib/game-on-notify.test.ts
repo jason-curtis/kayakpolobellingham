@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { buildSubject, buildBody, checkAndNotify } from "./game-on-notify";
 import type { GameInfo, SignupList, SendEmailFn } from "./game-on-notify";
 
+vi.mock("./conditions-text", () => ({
+  fetchConditionsText: vi.fn().mockResolvedValue("Tide flooding 2.1ft → 5.8ft\n48°F, clear skies"),
+}));
+
 // ── buildSubject ──────────────────────────────────────────────────────────────
 
 describe("buildSubject", () => {
