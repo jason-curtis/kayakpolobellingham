@@ -19,7 +19,6 @@ interface HourlyWeather {
   cloud: number;
   precip: number;
   wind: number;
-  gusts: number;
   windDir: number;
 }
 
@@ -115,7 +114,7 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
   const startH = Math.max(0, Math.floor(gameStartH));
   const endH = Math.min(23, Math.ceil(gameStartH + 2));
 
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
+  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
 
   try {
     const res = await fetch(url);
@@ -127,7 +126,6 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
         cloud_cover: number[];
         precipitation: number[];
         wind_speed_10m: number[];
-        wind_gusts_10m: number[];
         wind_direction_10m: number[];
       };
     };
@@ -136,7 +134,7 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
 
     // Average conditions during game window
     let tempSum = 0, cloudSum = 0, precipMax = 0;
-    let windMax = 0, gustMax = 0, windDirAtMax = 0;
+    let windMax = 0, windDirAtMax = 0;
     let count = 0;
 
     for (let i = startH; i <= endH && i < h.time.length; i++) {
@@ -147,7 +145,6 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
         windMax = h.wind_speed_10m[i];
         windDirAtMax = h.wind_direction_10m[i];
       }
-      gustMax = Math.max(gustMax, h.wind_gusts_10m[i]);
       count++;
     }
 
@@ -157,7 +154,6 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
     const avgCloud = Math.round(cloudSum / count);
     const compassDir = degreesToCompass(windDirAtMax);
     const windStr = Math.round(windMax);
-    const gustStr = Math.round(gustMax);
 
     const parts: string[] = [];
     parts.push(`${avgTemp}°F`);
@@ -169,9 +165,7 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
 
     if (precipMax > 0.01) parts.push(`rain ${precipMax.toFixed(2)} in/hr`);
 
-    let windText = `wind ${compassDir} ${windStr}mph`;
-    if (gustMax > windMax + 5) windText += ` gusts ${gustStr}`;
-    parts.push(windText);
+    parts.push(`wind ${compassDir} ${windStr}mph`);
 
     return parts.join(", ");
   } catch {

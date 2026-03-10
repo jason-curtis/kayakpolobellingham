@@ -20,7 +20,6 @@ interface HourWeather {
   cloud: number;
   precip: number;
   wind: number;
-  gusts: number;
   windDir: number; // degrees, direction wind is coming FROM
 }
 
@@ -186,7 +185,7 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
     if (diffDays < -1 || diffDays > 15) return;
 
     let cancelled = false;
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_gusts_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
 
     fetch(url)
       .then(r => r.ok ? r.json() : Promise.reject())
@@ -209,7 +208,6 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
             cloud: Math.round(h.cloud_cover[i]),
             precip: h.precipitation[i],
             wind: Math.round(h.wind_speed_10m[i]),
-            gusts: Math.round(h.wind_gusts_10m[i]),
             windDir: Math.round(h.wind_direction_10m[i]),
           });
         }
@@ -438,12 +436,7 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
                   <td key={h.hour} className="px-1.5">
                     <div className="flex flex-col items-center gap-0.5">
                       <WindArrow dir={h.windDir} size={16} />
-                      <span>
-                        {h.wind}
-                        {h.gusts > h.wind + 5 && (
-                          <span className="text-xs text-gray-400">g{h.gusts}</span>
-                        )}
-                      </span>
+                      <span>{h.wind}</span>
                     </div>
                   </td>
                 ))}
