@@ -1,6 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { createGroupsIoSender } from "./send-email";
 
+function mockOkJson(data: unknown) {
+  return { ok: true, json: () => Promise.resolve(data), text: () => Promise.resolve(JSON.stringify(data)) };
+}
+
+function mockOk() {
+  return { ok: true, text: () => Promise.resolve("{}") };
+}
+
+function mockError(status: number, body: string) {
+  return { ok: false, status, text: () => Promise.resolve(body) };
+}
+
 describe("createGroupsIoSender", () => {
   const originalFetch = globalThis.fetch;
 
@@ -12,48 +24,41 @@ describe("createGroupsIoSender", () => {
     globalThis.fetch = originalFetch;
   });
 
-  it("creates draft then posts it via groups.io API", async () => {
-    // Step 1: newdraft returns a draft with id
-    (globalThis.fetch as any).mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ id: 42 }),
-    });
-    // Step 2: postdraft succeeds
-    (globalThis.fetch as any).mockResolvedValueOnce({
-      ok: true,
-      text: () => Promise.resolve("{}"),
-    });
+  it("creates draft, updates it, then posts via groups.io API", async () => {
+    (globalThis.fetch as any)
+      .mockResolvedValueOnce(mockOkJson({ id: 42 }))  // newdraft
+      .mockResolvedValueOnce(mockOk())                  // updatedraft
+      .mockResolvedValueOnce(mockOk());                  // postdraft
 
     const sender = createGroupsIoSender("test-api-key");
     await sender("kayakpolobellingham@groups.io", "Sunday 8/3 game on!", "Game on body");
 
-    expect(globalThis.fetch).toHaveBeenCalledTimes(2);
+    expect(globalThis.fetch).toHaveBeenCalledTimes(3);
 
-    // Verify newdraft call
+    // newdraft: creates empty draft
     const [draftUrl, draftOpts] = (globalThis.fetch as any).mock.calls[0];
     expect(draftUrl).toBe("https://groups.io/api/v1/newdraft");
-    expect(draftOpts.method).toBe("POST");
-    expect(draftOpts.headers.Authorization).toBe("Bearer test-api-key");
     const draftBody = new URLSearchParams(draftOpts.body);
     expect(draftBody.get("group_id")).toBe("14099");
-    expect(draftBody.get("subject")).toBe("Sunday 8/3 game on!");
-    expect(draftBody.get("body")).toBe("Game on body");
+    expect(draftBody.get("draft_type")).toBe("draft_type_post");
 
-    // Verify postdraft call
-    const [postUrl, postOpts] = (globalThis.fetch as any).mock.calls[1];
+    // updatedraft: sets subject and body
+    const [updateUrl, updateOpts] = (globalThis.fetch as any).mock.calls[1];
+    expect(updateUrl).toBe("https://groups.io/api/v1/updatedraft");
+    const updateBody = new URLSearchParams(updateOpts.body);
+    expect(updateBody.get("draft_id")).toBe("42");
+    expect(updateBody.get("subject")).toBe("Sunday 8/3 game on!");
+    expect(updateBody.get("body")).toBe("Game on body");
+
+    // postdraft: publishes
+    const [postUrl, postOpts] = (globalThis.fetch as any).mock.calls[2];
     expect(postUrl).toBe("https://groups.io/api/v1/postdraft");
-    expect(postOpts.method).toBe("POST");
-    expect(postOpts.headers.Authorization).toBe("Bearer test-api-key");
     const postBody = new URLSearchParams(postOpts.body);
     expect(postBody.get("draft_id")).toBe("42");
   });
 
   it("throws on newdraft failure", async () => {
-    (globalThis.fetch as any).mockResolvedValueOnce({
-      ok: false,
-      status: 403,
-      text: () => Promise.resolve("Forbidden"),
-    });
+    (globalThis.fetch as any).mockResolvedValueOnce(mockError(403, "Forbidden"));
 
     const sender = createGroupsIoSender("test-api-key");
     await expect(sender("to@test.com", "Subject", "Body")).rejects.toThrow(
@@ -61,18 +66,22 @@ describe("createGroupsIoSender", () => {
     );
   });
 
+  it("throws on updatedraft failure", async () => {
+    (globalThis.fetch as any)
+      .mockResolvedValueOnce(mockOkJson({ id: 99 }))
+      .mockResolvedValueOnce(mockError(400, "bad subject"));
+
+    const sender = createGroupsIoSender("test-api-key");
+    await expect(sender("to@test.com", "Subject", "Body")).rejects.toThrow(
+      "groups.io updatedraft failed: 400 bad subject"
+    );
+  });
+
   it("throws on postdraft failure", async () => {
-    // newdraft succeeds
-    (globalThis.fetch as any).mockResolvedValueOnce({
-      ok: true,
-      json: () => Promise.resolve({ id: 99 }),
-    });
-    // postdraft fails
-    (globalThis.fetch as any).mockResolvedValueOnce({
-      ok: false,
-      status: 500,
-      text: () => Promise.resolve("Internal error"),
-    });
+    (globalThis.fetch as any)
+      .mockResolvedValueOnce(mockOkJson({ id: 99 }))
+      .mockResolvedValueOnce(mockOk())
+      .mockResolvedValueOnce(mockError(500, "Internal error"));
 
     const sender = createGroupsIoSender("test-api-key");
     await expect(sender("to@test.com", "Subject", "Body")).rejects.toThrow(
