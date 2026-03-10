@@ -118,7 +118,9 @@ Respond with JSON only. Fields:
       return { result: null, error, raw_response: JSON.stringify(json).slice(0, 500), model: MODEL, latency_ms: latency };
     }
 
-    const parsed = JSON.parse(content);
+    let parsed = JSON.parse(content);
+    // LLM sometimes wraps response in an array — unwrap it
+    if (Array.isArray(parsed)) parsed = parsed[0] ?? {};
     const result: LLMParseResult = {
       is_signup: !!parsed.is_signup,
       game_date: typeof parsed.game_date === "string" ? parsed.game_date : null,
