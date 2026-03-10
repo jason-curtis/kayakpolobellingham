@@ -18,7 +18,7 @@ import {
 } from "./email-parser";
 
 describe("resolveName", () => {
-  it("resolves aliases and SENDER_MAP", () => {
+  it("resolves aliases and full names", () => {
     expect(resolveName("dor")).toBe("Dorothy");
     expect(resolveName("gs")).toBe("Gary");
     expect(resolveName("Dorothy Burke")).toBe("Dorothy");
@@ -30,8 +30,9 @@ describe("resolveName", () => {
 });
 
 describe("resolveSender", () => {
-  it("uses SENDER_MAP then resolveName", () => {
+  it("resolves sender names via aliases", () => {
     expect(resolveSender("Jason Curtis")).toBe("Jason");
+    expect(resolveSender("bflannelly50")).toBe("Brian");
     expect(resolveSender("random")).toBe("Random");
   });
 });

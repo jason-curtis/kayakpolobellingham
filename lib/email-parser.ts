@@ -51,52 +51,55 @@ export interface SignupParseOptions {
   resolveSender?: (sender: string) => string;
 }
 
-// ── Name aliasing (batch / static fallback) ─────────────────────────────────
+// ── Name aliasing ────────────────────────────────────────────────────────────
+// All keys are lowercase. resolveName() lowercases input before lookup.
+// Covers nicknames, full names, Groups.io usernames, and joke aliases.
 
 export const NAME_ALIASES: Record<string, string> = {
   dor: "Dorothy", db: "Dorothy", "dorothy burke": "Dorothy", dorothy: "Dorothy",
-  gary: "Gary", gs: "Gary", g: "Gary", gsouthstone: "Gary",
-  glenno: "Glenn", glen: "Glenn", glenn: "Glenn", "glenn biernacki": "Glenn",
+  dorth: "Dorothy", dorthvader: "Dorothy", "d and g": "Dorothy",
+  gary: "Gary", gs: "Gary", g: "Gary", gsouthstone: "Gary", daddy: "Gary",
+  glenno: "Glenn", glen: "Glenn", glenn: "Glenn", "glenn biernacki": "Glenn", "needle nose": "Glenn",
   dave: "Dave", dberger007: "Dave", "d berg": "Dave", "david b": "Dave",
+  grumpy: "Dave", gimpy: "Dave", grump: "Dave", "other grump": "Dave",
   jason: "Jason", bubbles: "Jason", "jason curtis": "Jason",
-  paul: "Paul", "paul burkhouse": "Paul", genaro: "Genaro", "genaro shaffer": "Genaro",
-  cam: "Cameron", cameron: "Cameron", "cameron berg": "Cameron", buddy: "Buddy", "buddy bomze": "Buddy",
-  mark: "Mark", "mark lisowski": "Mark", aaron: "Aaron", "aaron dutton": "Aaron",
-  mike: "Mike", "mike mills": "Mike", melissa: "Melissa", "melissa bertocchini": "Melissa",
-  sarah: "Sarah", "sarah hare": "Sarah", kevin: "Kevin", ryan: "Ryan", "ryan vasak": "Ryan",
+  paul: "Paul", "paul burkhouse": "Paul",
+  genaro: "Genaro", "genaro shaffer": "Genaro", genero: "Genaro",
+  cam: "Cameron", cameron: "Cameron", "cameron berg": "Cameron",
+  buddy: "Buddy", "buddy bomze": "Buddy",
+  mark: "Mark", "mark lisowski": "Mark",
+  aaron: "Aaron", "aaron dutton": "Aaron", "a-aron": "Aaron",
+  mike: "Mike", "mike mills": "Mike",
+  melissa: "Melissa", "melissa bertocchini": "Melissa", mel: "Melissa", mellissa: "Melissa",
+  sarah: "Sarah", "sarah hare": "Sarah",
+  kevin: "Kevin", kev: "Kevin", "kevin murphy": "Kevin",
+  ryan: "Ryan", "ryan vasak": "Ryan",
   jer: "Jerimiah", jerimiah: "Jerimiah", "jerimiah welch": "Jerimiah", jerimiahwelch: "Jerimiah",
-  matt: "Matt", "matt goodwin": "Matt", liz: "Liz", "liz donovan": "Liz",
-  daddy: "Gary", "needle nose": "Glenn", grumpy: "Dave", gimpy: "Dave", grump: "Dave", "other grump": "Dave",
-  dorth: "Dorothy", dorthvader: "Dorothy", "d and g": "Dorothy", "a-aron": "Aaron",
-  mel: "Melissa", mellissa: "Melissa", maryanne: "Maryann", kev: "Kevin", "kevin murphy": "Kevin",
-  nick: "Nick", dane: "Dane", genero: "Genaro", tim: "Tim", sheila: "Sheila", christine: "Christine",
-  chloe: "Chloe", jimmy: "Jimmy", steve: "Steve", "sgibson.home": "Steve", conor: "Conor",
-  "cari lou": "Cari", cari: "Cari", "maryann schmitt": "Maryann", maryann: "Maryann",
-  "adam bierschenk": "Adam", adam: "Adam", gib: "Gib", "gib morrow": "Gib",
-  "james mcardle": "James", james: "James", "ben": "Ben",
-};
-
-export const SENDER_MAP: Record<string, string> = {
-  "Dorothy Burke": "Dorothy", gsouthstone: "Gary", "glenn biernacki": "Glenn", dberger007: "Dave",
-  "Jason Curtis": "Jason", "Paul Burkhouse": "Paul", "Genaro Shaffer": "Genaro", "Cameron Berg": "Cameron",
-  "Buddy Bomze": "Buddy", "Mark Lisowski": "Mark", "Aaron Dutton": "Aaron", "Mike Mills": "Mike",
-  "Melissa Bertocchini": "Melissa", "Sarah Hare": "Sarah", Kevin: "Kevin", "Ryan Vasak": "Ryan",
-  jerimiahwelch: "Jerimiah", "Jerimiah Welch": "Jerimiah", "Matt Goodwin": "Matt", "Liz Donovan": "Liz",
-  "Gib Morrow": "Gib", "Cari Lou": "Cari", "Maryann Schmitt": "Maryann", "adam bierschenk": "Adam",
-  "James McArdle": "James", "sgibson.home": "Steve", bflannelly50: "Brian",
+  matt: "Matt", "matt goodwin": "Matt",
+  liz: "Liz", "liz donovan": "Liz",
+  nick: "Nick", dane: "Dane", tim: "Tim", sheila: "Sheila", christine: "Christine",
+  chloe: "Chloe", jimmy: "Jimmy",
+  steve: "Steve", "sgibson.home": "Steve",
+  conor: "Conor",
+  "cari lou": "Cari", cari: "Cari",
+  maryanne: "Maryann", "maryann schmitt": "Maryann", maryann: "Maryann",
+  "adam bierschenk": "Adam", adam: "Adam",
+  gib: "Gib", "gib morrow": "Gib",
+  "james mcardle": "James", james: "James",
+  ben: "Ben",
+  brian: "Brian", bflannelly50: "Brian",
 };
 
 export function resolveName(name: string): string {
-  let trimmed = name.trim().replace(/'s$/i, "");
+  const trimmed = name.trim().replace(/'s$/i, "");
   if (!trimmed) return "";
   const lower = trimmed.toLowerCase();
   if (NAME_ALIASES[lower]) return NAME_ALIASES[lower];
-  if (SENDER_MAP[trimmed]) return SENDER_MAP[trimmed];
   return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
 }
 
 export function resolveSender(sender: string): string {
-  return SENDER_MAP[sender] ?? resolveName(sender);
+  return resolveName(sender);
 }
 
 function titleCase(s: string): string {
@@ -186,11 +189,12 @@ export function parseSignupsFromMessage(
     if (lower.includes("yahoo mail") || lower.includes("mailto:")) continue;
     lower = lower.replace(/^[.\-–—*•·,;:!?]+\s*/, "").replace(/^(actually|sorry|wait|update|change|nvm|nevermind)[,:]?\s*/i, "");
 
+    // ── Self-referencing patterns (sender is the player) ──
+
     if (/\bi'?m\s+in\b/.test(lower) || /\bi'?ll\s+play\b/.test(lower) || /\bi'?ll\s+be\s+there\b/.test(lower) || /\bcount\s+me\s+in\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
       continue;
     }
-    // "I can make 5:30" / "I can do it" / "should work for me" / "I can also make it"
     if (/\bi\s+can\s+(?:make|do)\b/.test(lower) || /\bshould\s+work\s+for\s+me\b/.test(lower) || /\bi\s+can\s+also\s+make\s+it\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
       continue;
@@ -199,11 +203,12 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
     }
-    // Explicit self-referencing maybe patterns (before name-based patterns)
     if (/\bi'?m\s+a\s+maybe\b/.test(lower) || /\bi\s+might\b/.test(lower) || /\btentative\b/.test(lower) || /\bunsure\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
       continue;
     }
+
+    // ── Named patterns (someone signs up another player) ──
 
     const andPattern = lower.match(/^([a-z][a-z'\-]{1,15})\s+and\s+([a-z][a-z'\-]{1,15})\s+(?:are\s+|will\s+be\s+)?(in|out|maybe)\b/);
     if (andPattern) {
@@ -215,7 +220,6 @@ export function parseSignupsFromMessage(
       continue;
     }
 
-    // "Name can make/do [time]" → Name is in
     const nameCanMake = lower.match(/^([a-z][a-z'\-]{1,15})\s+can\s+(?:make|do)\b/);
     if (nameCanMake) {
       const name = resolveN(nameCanMake[1]);
@@ -247,6 +251,9 @@ export function parseSignupsFromMessage(
       results.push({ name: "Gary", status: "in" });
       continue;
     }
+
+    // ── Bare status lines (no name — attribute to sender) ──
+
     if (/^in[!.]?\s*$/.test(lower) || /^yes[!.]?\s*$/.test(lower) || /^yep[!.]?\s*$/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
       continue;
@@ -255,7 +262,6 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
     }
-    // Standalone "maybe" / "depends" — must come after name-based patterns
     if (/^maybe[!.]?\s*$/.test(lower) || /\bdepends\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
       continue;
@@ -509,6 +515,12 @@ export function isGameTopic(title: string): boolean {
 
 import { llmParse } from "./openrouter";
 
+/**
+ * Unified message parser. Fallback cascade:
+ *   1. Regex: extract date from subject, signups from body
+ *   2. Body fallback: try date from first 5 lines of body if subject had none
+ *   3. LLM fallback: Gemini Flash Lite for ambiguous/conversational messages
+ */
 export async function parseGameMessage(opts: {
   subject: string;
   body: string;
@@ -522,14 +534,14 @@ export async function parseGameMessage(opts: {
   const isGame = isGameTopic(opts.subject);
   let gameDate = extractGameDate(opts.subject, opts.referenceDate);
 
-  // Body fallback: try extracting date from first few lines of body when subject has none
+  // Fallback 2: date from body when subject has none
   if (!gameDate && isGame && cleaned) {
     const bodyLines = cleaned.split("\n").slice(0, 5).join(" ");
     const bodyDate = extractGameDate(bodyLines, opts.referenceDate);
     if (bodyDate) gameDate = bodyDate;
   }
 
-  // LLM fallback when regex comes up short on a game-related topic
+  // Fallback 3: LLM for game topics where regex missed date or signups
   if (isGame && opts.openrouterKey && (!gameDate || signups.length === 0)) {
     const llm = await llmParse(opts.openrouterKey, opts.subject, cleaned, opts.referenceDate);
     if (llm) {
