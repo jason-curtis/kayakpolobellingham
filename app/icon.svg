@@ -4,8 +4,8 @@
     <radialGradient id="ballGrad" cx="35%" cy="30%" r="75%">
       <stop offset="0%" stop-color="#FFF176" />
       <stop offset="30%" stop-color="#FFD54F" />
-      <stop offset="70%" stop-color="#F57F17" />
-      <stop offset="100%" stop-color="#BF360C" />
+      <!-- <stop offset="70%" stop-color="#BBA306" /> -->
+      <stop offset="100%" stop-color="#BFAA0C" />
     </radialGradient>
     
     <!-- Water splash gradient with transparency -->
@@ -31,13 +31,13 @@
 
   <!-- Explosive Splash (Behind Ball) -->
   <g filter="url(#splashGlow)">
-    <path d="M2 30 C 4 15, 10 5, 16 8 C 22 5, 28 15, 30 30" fill="url(#waterGrad)" opacity="0.7" />
+    <!-- <path d="M2 30 C 4 15, 10 10, 16 8 C 22 5, 28 15, 30 30" fill="url(#waterGrad)" opacity="0.7" /> -->
     <!-- Dynamic Spray Paths -->
     <path d="M6 25 Q 10 10, 14 20 Q 16 5, 18 20 Q 22 10, 26 25" fill="none" stroke="white" stroke-width="1.2" stroke-linecap="round" opacity="0.9" />
   </g>
 
   <!-- The Water Polo Ball: Dynamic Tilt & Action -->
-  <g transform="translate(16, 15) rotate(-20)">
+  <g transform="translate(16, 15) rotate(-20) scale(1.4)">
     <!-- Main sphere -->
     <circle cx="0" cy="0" r="10.5" fill="url(#ballGrad)" />
     
@@ -69,18 +69,18 @@
   <!-- Foreground Splash: Droplets and "Eruption" -->
   <g fill="white">
     <!-- Erupting foam at the base -->
-    <path d="M8 32 Q 12 16, 16 25 Q 20 16, 24 32" opacity="0.9" />
+    <!-- <path d="M8 32 Q 12 16, 16 25 Q 20 16, 24 32" opacity="0.9" /> -->
     
     <!-- Kinetic Droplets -->
     <!-- Left side -->
-    <circle cx="5" cy="18" r="1.4" />
+    <circle cx="5" cy="12" r="3" />
     <path d="M4 14 L 4.5 12 Q 5 11, 5.5 12 L 6 14 Z" opacity="0.8" /> <!-- Teardrop -->
     <!-- Right side -->
-    <circle cx="27" cy="20" r="1.6" />
-    <circle cx="29" cy="12" r="0.8" />
+    <circle cx="27" cy="20" r="6" opacity="0.5"/>
+    <circle cx="29" cy="12" r="1.2" />
     <!-- Center/Top -->
-    <circle cx="16" cy="18" r="1" />
-    <circle cx="21" cy="15" r="0.7" />
+    <circle cx="16" cy="18" r="2" />
+    <circle cx="21" cy="15" r="1" />
     <path d="M12 10 L 11.5 8 Q 11 7, 10.5 8 L 10 10 Z" opacity="0.6" />
 
     <!-- Smaller scattered mist -->
