@@ -182,7 +182,7 @@ function getPacificOffset(date: string): number {
 /** Fetch weather from NWS for a given date. Returns text summary for game window. */
 export async function fetchWeatherText(date: string, gameStartH: number): Promise<string | null> {
   const startH = Math.max(0, Math.floor(gameStartH));
-  const endH = Math.min(23, Math.ceil(gameStartH + 2));
+  const endH = Math.min(23, Math.floor(gameStartH + 2));
   const utcOffset = getPacificOffset(date);
 
   try {
