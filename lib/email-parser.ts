@@ -57,7 +57,8 @@ export const NAME_ALIASES: Record<string, string> = {
   dor: "Dorothy", db: "Dorothy", "dorothy burke": "Dorothy", dorothy: "Dorothy",
   gary: "Gary", gs: "Gary", g: "Gary", gsouthstone: "Gary",
   glenno: "Glenn", glen: "Glenn", glenn: "Glenn", "glenn biernacki": "Glenn",
-  dave: "Dave", dberger007: "Dave", jason: "Jason", bubbles: "Jason", "jason curtis": "Jason",
+  dave: "Dave", dberger007: "Dave", "d berg": "Dave", "david b": "Dave",
+  jason: "Jason", bubbles: "Jason", "jason curtis": "Jason",
   paul: "Paul", "paul burkhouse": "Paul", genaro: "Genaro", "genaro shaffer": "Genaro",
   cam: "Cameron", cameron: "Cameron", "cameron berg": "Cameron", buddy: "Buddy", "buddy bomze": "Buddy",
   mark: "Mark", "mark lisowski": "Mark", aaron: "Aaron", "aaron dutton": "Aaron",
@@ -533,9 +534,9 @@ export async function parseGameMessage(opts: {
     const llm = await llmParse(opts.openrouterKey, opts.subject, cleaned, opts.referenceDate);
     if (llm) {
       if (!gameDate && llm.game_date) gameDate = llm.game_date;
-      if (signups.length === 0 && llm.is_signup && llm.name && llm.status) {
-        const resolved = resolveName(llm.name);
-        if (resolved) signups = [{ name: resolved, status: llm.status }];
+      if (signups.length === 0 && llm.is_signup && llm.status) {
+        const name = llm.name ? resolveName(llm.name) : senderName;
+        if (name) signups = [{ name, status: llm.status }];
       }
     }
   }
