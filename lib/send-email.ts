@@ -20,6 +20,7 @@ export function createGroupsIoSender(apiKey: string) {
     // Step 1: Create a draft
     const draftForm = new URLSearchParams();
     draftForm.set("group_id", String(GROUP_ID));
+    draftForm.set("draft_type", "draft_type_post");
     draftForm.set("subject", subject);
     draftForm.set("body", body);
 
