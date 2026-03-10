@@ -224,7 +224,7 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
             ) : (
               <>
                 {!isSignupOpen(game) && (
-                  <p className="text-xs text-orange-500 mb-2">Deadline passed — your signup will be marked as late</p>
+                  <p className="text-xs text-orange-500 mb-2">Deadline passed - please sign up anyway</p>
                 )}
                 <input
                   type="text"
