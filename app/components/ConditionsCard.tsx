@@ -20,7 +20,65 @@ interface HourWeather {
   cloud: number;
   precip: number;
   wind: number;
+  gusts: number;
   windDir: number; // degrees, direction wind is coming FROM
+}
+
+// NWS API types
+interface NwsTimeValue {
+  validTime: string;
+  value: number;
+}
+
+const NWS_GRIDPOINT = 'https://api.weather.gov/gridpoints/SEW/131,123';
+const MM_TO_IN = 0.0393701;
+const KMH_TO_MPH = 0.621371;
+
+/** Expand NWS interval time-series to a map of local hour → value for a target date. */
+function expandNwsSeries(
+  values: NwsTimeValue[],
+  targetDate: string,
+  utcOffsetH: number,
+): Map<number, number> {
+  const hourly = new Map<number, number>();
+  for (const entry of values) {
+    const [timePart, durPart] = entry.validTime.split('/');
+    const startUtc = new Date(timePart).getTime();
+    const hours = parseInt(durPart.replace('PT', '').replace('H', ''), 10) || 1;
+    for (let h = 0; h < hours; h++) {
+      const localMs = startUtc + h * 3600000 + utcOffsetH * 3600000;
+      const local = new Date(localMs);
+      const localDate = local.toISOString().slice(0, 10);
+      if (localDate === targetDate) {
+        hourly.set(local.getUTCHours(), entry.value);
+      }
+    }
+  }
+  return hourly;
+}
+
+/** Expand NWS precip to hourly rate (in/hr). Cumulative mm over interval → divide by hours, convert. */
+function expandNwsPrecip(
+  values: NwsTimeValue[],
+  targetDate: string,
+  utcOffsetH: number,
+): Map<number, number> {
+  const hourly = new Map<number, number>();
+  for (const entry of values) {
+    const [timePart, durPart] = entry.validTime.split('/');
+    const startUtc = new Date(timePart).getTime();
+    const hours = parseInt(durPart.replace('PT', '').replace('H', ''), 10) || 1;
+    const rateInPerHr = (entry.value * MM_TO_IN) / hours;
+    for (let h = 0; h < hours; h++) {
+      const localMs = startUtc + h * 3600000 + utcOffsetH * 3600000;
+      const local = new Date(localMs);
+      const localDate = local.toISOString().slice(0, 10);
+      if (localDate === targetDate) {
+        hourly.set(local.getUTCHours(), rateInPerHr);
+      }
+    }
+  }
+  return hourly;
 }
 
 // ── Solar calculations for Bellingham, WA ─────────────────────────────────
@@ -177,38 +235,46 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
     return () => { cancelled = true; };
   }, [date]);
 
-  // Fetch weather (only for near-future games)
+  // Fetch weather from NWS (only for near-future games)
   useEffect(() => {
     const gameDate = new Date(`${date}T12:00:00`);
     const now = new Date();
     const diffDays = (gameDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24);
-    if (diffDays < -1 || diffDays > 15) return;
+    if (diffDays < -1 || diffDays > 7) return;
 
     let cancelled = false;
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
+    const utcOffset = getPacificOffset(gameDate);
 
-    fetch(url)
+    fetch(NWS_GRIDPOINT, { headers: { 'User-Agent': 'kayakpolobellingham' } })
       .then(r => r.ok ? r.json() : Promise.reject())
       .then(data => {
         if (cancelled) return;
-        const h = data.hourly;
-        if (!h?.time?.length) return;
+        const p = data.properties;
+
+        const temps = expandNwsSeries(p.temperature.values, date, utcOffset);
+        const sky = expandNwsSeries(p.skyCover.values, date, utcOffset);
+        const precip = expandNwsPrecip(p.quantitativePrecipitation.values, date, utcOffset);
+        const winds = expandNwsSeries(p.windSpeed.values, date, utcOffset);
+        const gustData = expandNwsSeries(p.windGust.values, date, utcOffset);
+        const windDirs = expandNwsSeries(p.windDirection.values, date, utcOffset);
 
         const startH = Math.max(0, Math.floor(gameStartH) - 1);
         const endH = Math.min(23, Math.ceil(gameStartH + 2));
 
         const result: HourWeather[] = [];
         for (let i = startH; i <= endH; i++) {
+          if (!temps.has(i)) continue;
           const ampm = i < 12 ? 'a' : 'p';
           const h12 = i === 0 ? 12 : i > 12 ? i - 12 : i;
           result.push({
             hour: i,
             label: `${h12}${ampm}`,
-            temp: Math.round(h.temperature_2m[i]),
-            cloud: Math.round(h.cloud_cover[i]),
-            precip: h.precipitation[i],
-            wind: Math.round(h.wind_speed_10m[i]),
-            windDir: Math.round(h.wind_direction_10m[i]),
+            temp: Math.round((temps.get(i)! * 9 / 5) + 32),
+            cloud: Math.round(sky.get(i) ?? 0),
+            precip: precip.get(i) ?? 0,
+            wind: Math.round((winds.get(i) ?? 0) * KMH_TO_MPH),
+            gusts: Math.round((gustData.get(i) ?? 0) * KMH_TO_MPH),
+            windDir: Math.round(windDirs.get(i) ?? 0),
           });
         }
         setWeather(result);
@@ -436,7 +502,12 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
                   <td key={h.hour} className="px-1.5">
                     <div className="flex flex-col items-center gap-0.5">
                       <WindArrow dir={h.windDir} size={16} />
-                      <span>{h.wind}</span>
+                      <span>
+                        {h.wind}
+                        {h.gusts > h.wind + 5 && (
+                          <span className="text-xs text-gray-400">g{h.gusts}</span>
+                        )}
+                      </span>
                     </div>
                   </td>
                 ))}

@@ -4,8 +4,8 @@
  */
 
 const STATION_ID = "9449211"; // Bellingham, Bellingham Bay
-const LAT = 48.75;
-const LNG = -122.48;
+const NWS_GRIDPOINT = "https://api.weather.gov/gridpoints/SEW/131,123";
+const NWS_UA = "kayakpolobellingham";
 
 interface HiLoPoint {
   t: string; // "YYYY-MM-DD HH:MM"
@@ -13,13 +13,14 @@ interface HiLoPoint {
   type: string; // "H" or "L"
 }
 
-interface HourlyWeather {
-  hour: number;
-  temp: number;
-  cloud: number;
-  precip: number;
-  wind: number;
-  windDir: number;
+interface NwsTimeValue {
+  validTime: string; // "2026-03-11T00:00:00+00:00/PT6H"
+  value: number;
+}
+
+interface NwsSeries {
+  uom: string;
+  values: NwsTimeValue[];
 }
 
 const COMPASS = [
@@ -109,42 +110,122 @@ export async function fetchTideText(date: string, gameStartH: number, gameEndH: 
   }
 }
 
-/** Fetch weather from Open-Meteo for a given date. Returns text summary for game window. */
+/**
+ * Expand NWS interval time-series to a map of local hour → value for a target date.
+ * NWS times are UTC with ISO 8601 durations (e.g. "2026-03-11T00:00:00+00:00/PT6H").
+ * PDT offset is hardcoded to -7 (Pacific Daylight); PST would be -8. Good enough for
+ * Bellingham game forecasts which are always within the DST/standard transition window.
+ */
+function expandNwsSeries(
+  series: NwsTimeValue[],
+  targetDate: string,
+  utcOffsetH: number,
+): Map<number, number> {
+  const hourly = new Map<number, number>();
+  for (const entry of series) {
+    const [timePart, durPart] = entry.validTime.split("/");
+    const startUtc = new Date(timePart).getTime();
+    const hours = parseInt(durPart.replace("PT", "").replace("H", ""), 10) || 1;
+    for (let h = 0; h < hours; h++) {
+      const localMs = startUtc + h * 3600000 + utcOffsetH * 3600000;
+      const local = new Date(localMs);
+      const localDate = local.toISOString().slice(0, 10);
+      if (localDate === targetDate) {
+        hourly.set(local.getUTCHours(), entry.value);
+      }
+    }
+  }
+  return hourly;
+}
+
+/**
+ * Expand NWS precip series to hourly rate (in/hr) for a target date.
+ * NWS quantitativePrecipitation is cumulative mm over the interval,
+ * so divide by interval hours and convert mm→in.
+ */
+function expandNwsPrecip(
+  series: NwsTimeValue[],
+  targetDate: string,
+  utcOffsetH: number,
+): Map<number, number> {
+  const hourly = new Map<number, number>();
+  const MM_TO_IN = 0.0393701;
+  for (const entry of series) {
+    const [timePart, durPart] = entry.validTime.split("/");
+    const startUtc = new Date(timePart).getTime();
+    const hours = parseInt(durPart.replace("PT", "").replace("H", ""), 10) || 1;
+    const rateInPerHr = (entry.value * MM_TO_IN) / hours;
+    for (let h = 0; h < hours; h++) {
+      const localMs = startUtc + h * 3600000 + utcOffsetH * 3600000;
+      const local = new Date(localMs);
+      const localDate = local.toISOString().slice(0, 10);
+      if (localDate === targetDate) {
+        hourly.set(local.getUTCHours(), rateInPerHr);
+      }
+    }
+  }
+  return hourly;
+}
+
+/** Get Pacific timezone UTC offset for a date (-7 PDT or -8 PST). */
+function getPacificOffset(date: string): number {
+  const d = new Date(`${date}T12:00:00Z`);
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Los_Angeles",
+    timeZoneName: "longOffset",
+  }).formatToParts(d);
+  const tz = parts.find(p => p.type === "timeZoneName");
+  const m = tz?.value?.match(/GMT([+-]\d{2})/);
+  return m ? parseInt(m[1], 10) : -8;
+}
+
+/** Fetch weather from NWS for a given date. Returns text summary for game window. */
 export async function fetchWeatherText(date: string, gameStartH: number): Promise<string | null> {
   const startH = Math.max(0, Math.floor(gameStartH));
   const endH = Math.min(23, Math.ceil(gameStartH + 2));
-
-  const url = `https://api.open-meteo.com/v1/forecast?latitude=${LAT}&longitude=${LNG}&hourly=temperature_2m,precipitation,cloud_cover,wind_speed_10m,wind_direction_10m&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=America/Los_Angeles&start_date=${date}&end_date=${date}`;
+  const utcOffset = getPacificOffset(date);
 
   try {
-    const res = await fetch(url);
+    const res = await fetch(NWS_GRIDPOINT, {
+      headers: { "User-Agent": NWS_UA },
+    });
     if (!res.ok) return null;
     const data = await res.json() as {
-      hourly?: {
-        time: string[];
-        temperature_2m: number[];
-        cloud_cover: number[];
-        precipitation: number[];
-        wind_speed_10m: number[];
-        wind_direction_10m: number[];
+      properties: {
+        temperature: NwsSeries;
+        skyCover: NwsSeries;
+        quantitativePrecipitation: NwsSeries;
+        windSpeed: NwsSeries;
+        windGust: NwsSeries;
+        windDirection: NwsSeries;
       };
     };
-    const h = data.hourly;
-    if (!h?.time?.length) return null;
+    const p = data.properties;
 
-    // Average conditions during game window
+    const temps = expandNwsSeries(p.temperature.values, date, utcOffset);
+    const sky = expandNwsSeries(p.skyCover.values, date, utcOffset);
+    const precip = expandNwsPrecip(p.quantitativePrecipitation.values, date, utcOffset);
+    const winds = expandNwsSeries(p.windSpeed.values, date, utcOffset);
+    const gusts = expandNwsSeries(p.windGust.values, date, utcOffset);
+    const windDirs = expandNwsSeries(p.windDirection.values, date, utcOffset);
+
     let tempSum = 0, cloudSum = 0, precipMax = 0;
-    let windMax = 0, windDirAtMax = 0;
+    let windMax = 0, gustMax = 0, windDirAtMax = 0;
     let count = 0;
 
-    for (let i = startH; i <= endH && i < h.time.length; i++) {
-      tempSum += h.temperature_2m[i];
-      cloudSum += h.cloud_cover[i];
-      precipMax = Math.max(precipMax, h.precipitation[i]);
-      if (h.wind_speed_10m[i] > windMax) {
-        windMax = h.wind_speed_10m[i];
-        windDirAtMax = h.wind_direction_10m[i];
+    for (let i = startH; i <= endH; i++) {
+      const t = temps.get(i);
+      if (t == null) continue;
+      tempSum += t * 9 / 5 + 32; // °C → °F
+      cloudSum += sky.get(i) ?? 0;
+      precipMax = Math.max(precipMax, precip.get(i) ?? 0);
+      const w = (winds.get(i) ?? 0) * 0.621371; // km/h → mph
+      const g = (gusts.get(i) ?? 0) * 0.621371;
+      if (w > windMax) {
+        windMax = w;
+        windDirAtMax = windDirs.get(i) ?? 0;
       }
+      gustMax = Math.max(gustMax, g);
       count++;
     }
 
@@ -154,6 +235,7 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
     const avgCloud = Math.round(cloudSum / count);
     const compassDir = degreesToCompass(windDirAtMax);
     const windStr = Math.round(windMax);
+    const gustStr = Math.round(gustMax);
 
     const parts: string[] = [];
     parts.push(`${avgTemp}°F`);
@@ -165,7 +247,9 @@ export async function fetchWeatherText(date: string, gameStartH: number): Promis
 
     if (precipMax > 0.01) parts.push(`rain ${precipMax.toFixed(2)} in/hr`);
 
-    parts.push(`wind ${compassDir} ${windStr}mph`);
+    let windText = `wind ${compassDir} ${windStr}mph`;
+    if (gustMax > windMax + 5) windText += ` gusts ${gustStr}`;
+    parts.push(windText);
 
     return parts.join(", ");
   } catch {
