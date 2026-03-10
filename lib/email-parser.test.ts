@@ -172,6 +172,25 @@ describe("extractGameDate", () => {
     const result = extractGameDate("Sunday the 5th");
     expect(result).toMatch(/^\d{4}-\d{2}-05$/);
   });
+  it("extracts date from day-name-only subject with reference date", () => {
+    // "2026 Wednesday Night Season Opener" posted on Wed March 4 → next Wed = March 11
+    expect(extractGameDate("2026 Wednesday Night Season Opener", "2026-03-04T16:48:23")).toBe("2026-03-11");
+  });
+  it("extracts date from day-name-only subject (Sunday)", () => {
+    // Subject just says "Sunday" posted on Thursday March 5 → next Sunday = March 8
+    expect(extractGameDate("Sunday polo game", "2026-03-05T10:00:00")).toBe("2026-03-08");
+  });
+  it("day-name-only returns null without reference date", () => {
+    // Without reference date we can't compute which week, so return null
+    expect(extractGameDate("Wednesday Night Season Opener")).toBeNull();
+  });
+  it("day-name-only handles abbreviated day names", () => {
+    expect(extractGameDate("Weds night game", "2026-03-04T10:00:00")).toBe("2026-03-11");
+  });
+  it("handles 'Game On Polo 5:30 Wednesday Season Opener'", () => {
+    // Posted Saturday March 8 → next Wednesday = March 11
+    expect(extractGameDate("Game On Polo 5:30 Wednesday Season Opener", "2026-03-08T21:48:55")).toBe("2026-03-11");
+  });
 });
 
 describe("isGameTopic", () => {
@@ -242,6 +261,27 @@ describe("parseGameMessage", () => {
     expect(result.signups).toEqual([]);
     expect(result.gameDate).toBeNull();
     expect(result.isGameTopic).toBe(false);
+  });
+  it("extracts date from day-name-only subject via reference date", async () => {
+    const result = await parseGameMessage({
+      subject: "2026 Wednesday Night Season Opener",
+      body: "I'm in",
+      senderName: "Jason Curtis",
+      referenceDate: "2026-03-04T16:48:23",
+    });
+    expect(result.gameDate).toBe("2026-03-11");
+    expect(result.isGameTopic).toBe(true);
+    expect(result.signups).toEqual([{ name: "Jason", status: "in" }]);
+  });
+  it("falls back to body for date extraction when subject has none", async () => {
+    const result = await parseGameMessage({
+      subject: "Season Opener",
+      body: "Posting for next Wednesday the 11th\nI'm in",
+      senderName: "gsouthstone",
+      referenceDate: "2026-03-04T16:48:23",
+    });
+    expect(result.gameDate).toBe("2026-03-11");
+    expect(result.signups).toEqual([{ name: "Gary", status: "in" }]);
   });
 });
 

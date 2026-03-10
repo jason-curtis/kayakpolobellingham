@@ -94,14 +94,13 @@ export async function fetchAllMessages(
   return all;
 }
 
-/** Fetch a single message by msg_num. Scans recent messages to find the match. */
+/** Fetch a single message by msg_num. Scans recent messages, then pages backward if needed. */
 export async function fetchMessageByNum(
   apiKey: string,
   groupId: number,
   msgNum: number,
 ): Promise<GroupsIoMessage | null> {
-  // Try fetching a small window of messages around the target
-  // The API sorts by created, so we fetch descending and scan
+  // First try: scan latest 100 messages (covers most recent lookups)
   const url = new URL(`${API_BASE}/getmessages`);
   url.searchParams.set("group_id", String(groupId));
   url.searchParams.set("limit", "100");
@@ -116,7 +115,34 @@ export async function fetchMessageByNum(
   }
 
   const json = (await res.json()) as MessagesResponse;
-  return json.data?.find((m) => m.msg_num === msgNum) ?? null;
+  const found = json.data?.find((m) => m.msg_num === msgNum);
+  if (found) return found;
+
+  // Second try: page backward up to 2 more pages to find older messages
+  if (json.has_more) {
+    let pageToken = json.next_page_token;
+    for (let page = 0; page < 2 && pageToken; page++) {
+      const pageUrl = new URL(`${API_BASE}/getmessages`);
+      pageUrl.searchParams.set("group_id", String(groupId));
+      pageUrl.searchParams.set("limit", "100");
+      pageUrl.searchParams.set("sort_field", "created");
+      pageUrl.searchParams.set("sort_dir", "desc");
+      pageUrl.searchParams.set("page_token", String(pageToken));
+
+      const pageRes = await fetch(pageUrl.toString(), {
+        headers: { Authorization: `Bearer ${apiKey}` },
+      });
+      if (!pageRes.ok) break;
+
+      const pageJson = (await pageRes.json()) as MessagesResponse;
+      const pageFound = pageJson.data?.find((m) => m.msg_num === msgNum);
+      if (pageFound) return pageFound;
+      if (!pageJson.has_more) break;
+      pageToken = pageJson.next_page_token;
+    }
+  }
+
+  return null;
 }
 
 /** Strip HTML tags, convert block elements to newlines, and decode entities. */

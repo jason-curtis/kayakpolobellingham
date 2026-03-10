@@ -326,6 +326,26 @@ export function extractGameDate(subject: string, referenceDate?: string): string
     }
   }
 
+  // Day-name-only: "Wednesday Night Season Opener" — no date number at all.
+  // Compute next occurrence of that weekday from reference date.
+  if (!result && refDate) {
+    const allNames = [...DAY_NAMES, ...Object.keys(DAY_ALIASES)];
+    const foundDay = allNames.find((d) => t.includes(d));
+    if (foundDay) {
+      const canonical = DAY_ALIASES[foundDay] ?? foundDay;
+      const targetDow = DAY_NAMES.indexOf(canonical);
+      if (targetDow >= 0) {
+        const refDay = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
+        const refDow = refDay.getDay();
+        let daysAhead = (targetDow - refDow + 7) % 7;
+        if (daysAhead === 0) daysAhead = 7; // same day = next week
+        const next = new Date(refDay);
+        next.setDate(next.getDate() + daysAhead);
+        result = formatDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
+      }
+    }
+  }
+
   if (!result || !refDate) return result;
 
   // Past-date correction: if result is before refDate and subject mentions a day name, advance
@@ -485,6 +505,13 @@ export async function parseGameMessage(opts: {
   let signups = parseSignupsFromMessage(cleaned, senderName, { resolveName, resolveSender });
   const isGame = isGameTopic(opts.subject);
   let gameDate = extractGameDate(opts.subject, opts.referenceDate);
+
+  // Body fallback: try extracting date from first few lines of body when subject has none
+  if (!gameDate && isGame && cleaned) {
+    const bodyLines = cleaned.split("\n").slice(0, 5).join(" ");
+    const bodyDate = extractGameDate(bodyLines, opts.referenceDate);
+    if (bodyDate) gameDate = bodyDate;
+  }
 
   // LLM fallback when regex comes up short on a game-related topic
   if (isGame && opts.openrouterKey && (!gameDate || signups.length === 0)) {
