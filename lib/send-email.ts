@@ -48,11 +48,12 @@ export function createGroupsIoSender(apiKey: string) {
     await assertOk(draftRes, "newdraft");
     const draft = (await draftRes.json()) as { id: number };
 
-    // Step 2: Set subject and body
+    // Step 2: Set subject and body (API expects HTML)
+    const htmlBody = body.replace(/\n/g, "<br>\n");
     const updateRes = await groupsIoPost(apiKey, "updatedraft", {
       draft_id: String(draft.id),
       subject,
-      body,
+      body: htmlBody,
     });
     await assertOk(updateRes, "updatedraft");
 
