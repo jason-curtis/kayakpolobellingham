@@ -425,7 +425,7 @@ export default function ConditionsCard({ date, gameTime }: ConditionsCardProps) 
           </span>
         </div>
         <a
-          href={`https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9449211&legacy=1&type=hi-lo&datum=MLLW&units=english&beginDate=${date.replace(/-/g, '')}`}
+          href={`https://tidesandcurrents.noaa.gov/noaatidepredictions.html?id=9449211&units=english&bdate=${date.replace(/-/g, '')}&edate=${(() => { const d = new Date(date + 'T00:00:00'); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10).replace(/-/g, ''); })()}&timezone=LST/LDT&clock=12hour&datum=MLLW&interval=hilo&action=dailychart`}
           target="_blank" rel="noopener noreferrer"
           className="text-xs text-blue-500 hover:underline"
         >NOAA tides</a>
