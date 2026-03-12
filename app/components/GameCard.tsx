@@ -177,7 +177,7 @@ export default function GameCard({ game, onSignup, playerName = '', onPlayerName
             {isSignupOpen(game)
               ? `Signups close in ${countdowns.signupDeadline || '...'}`
               : state === 'game_on'
-                ? `Late signups open · starts in ${countdowns.gameStart || '...'}`
+                ? `Starts in ${countdowns.gameStart || '...'}`
                 : state === 'cancelled'
                   ? 'Not enough players signed up'
                   : null
