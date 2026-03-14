@@ -173,10 +173,6 @@ export default function Home() {
               <div className="md:col-span-2">
                 <GameCard
                   game={selectedGame}
-                  onSignup={handleSignup}
-                  playerName={playerName}
-                  onPlayerNameChange={savePlayerName}
-                  isSubmitting={isSubmitting}
                 />
               </div>
             )}

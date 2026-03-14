@@ -86,10 +86,6 @@ export default function GameDetailPage() {
         {game && (
           <GameCard
             game={game}
-            onSignup={handleSignup}
-            playerName={playerName}
-            onPlayerNameChange={savePlayerName}
-            isSubmitting={isSubmitting}
           />
         )}
 
