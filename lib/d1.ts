@@ -126,9 +126,13 @@ export async function createGame(
   const d = await db(database);
   const id = date; // e.g. "2026-03-08"
   const now = new Date().toISOString();
+  // Default deadline: 6pm Pacific the day before the game
+  const dayBefore = new Date(`${date}T00:00:00Z`);
+  dayBefore.setUTCDate(dayBefore.getUTCDate() - 1);
+  const dayBeforeStr = dayBefore.toISOString().slice(0, 10);
   const deadline =
     signup_deadline ??
-    new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString();
+    parsePacific(`${dayBeforeStr}T18:00:00`).toISOString();
   const { results } = await d
     .prepare(
       "INSERT INTO games (id, date, time, signup_deadline, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?) RETURNING *"
