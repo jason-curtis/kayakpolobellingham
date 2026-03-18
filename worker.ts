@@ -8,7 +8,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { parseGameMessage, extractSenderName } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
-import { pollForNewMessages } from "./lib/poll-groups-io";
+import { pollForNewMessages, backfillRecentMessages } from "./lib/poll-groups-io";
 import { checkAndNotify } from "./lib/game-on-notify";
 import { createGroupsIoSender } from "./lib/send-email";
 import { logger } from "./lib/logger";
@@ -48,7 +48,7 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
       return;
     }
     try {
-      const result = await pollForNewMessages(this.env.D1_DB, apiKey);
+      const result = await pollForNewMessages(this.env.D1_DB, apiKey, this.env.OPENROUTER_API_KEY);
       logger.info({ event: "poll_scheduled", ...result }, "scheduled poll complete");
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
@@ -62,6 +62,7 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
         subject: payload.subject,
         body: payload.textBody ?? "",
         senderName: extractSenderName(payload.from),
+        referenceDate: new Date().toISOString(),
         openrouterKey: this.env.OPENROUTER_API_KEY,
       });
 

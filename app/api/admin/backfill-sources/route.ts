@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
-import { fetchAllMessages, decodeSnippet, messageUrl } from "@/lib/groups-io-api";
+import { fetchAllMessages, decodeSnippet, stripHtml, messageUrl } from "@/lib/groups-io-api";
 import { parseGameMessage, resolveName } from "@/lib/email-parser";
 
 const GROUP_ID = 14099;
@@ -26,10 +26,10 @@ export async function POST(request: NextRequest) {
     let skipped = 0;
 
     for (const msg of messages) {
-      const snippet = decodeSnippet(msg.snippet);
+      const body = msg.body ? stripHtml(msg.body) : decodeSnippet(msg.snippet);
       const parsed = await parseGameMessage({
         subject: msg.subject,
-        body: snippet,
+        body,
         senderName: msg.name,
         referenceDate: msg.created,
         openrouterKey,
@@ -41,7 +41,7 @@ export async function POST(request: NextRequest) {
       const signups = parsed.signups;
 
       const sourceUrl = messageUrl(msg.msg_num);
-      const note = snippet.slice(0, 200);
+      const note = body.slice(0, 200);
 
       for (const signup of signups) {
         const resolved = resolveName(signup.name);

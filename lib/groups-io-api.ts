@@ -140,3 +140,17 @@ export function decodeSnippet(snippet: string): string {
     .replace(/&nbsp;/g, " ")
     .replace(/\u00a0/g, " ");
 }
+
+/** Convert HTML body to plain text (for Groups.io message body field). */
+export function stripHtml(html: string): string {
+  let text = html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<p[^>]*>/gi, "")
+    .replace(/<div[^>]*>/gi, "");
+  text = text.replace(/<[^>]*>/g, "");
+  text = decodeSnippet(text);
+  text = text.replace(/\n{3,}/g, "\n\n").trim();
+  return text;
+}

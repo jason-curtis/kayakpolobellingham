@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
-import { fetchMessageByNum, decodeSnippet, messageUrl } from "@/lib/groups-io-api";
+import { fetchMessageByNum, decodeSnippet, stripHtml, messageUrl } from "@/lib/groups-io-api";
 import { fetchMessagePage, extractJsonLd } from "@/lib/groups-io-scrape";
 import {
   isGameTopic,
@@ -47,7 +47,7 @@ export async function POST(request: NextRequest) {
       if (msg) {
         subject = msg.subject;
         senderRaw = msg.name;
-        body = decodeSnippet(msg.body || msg.snippet || "");
+        body = msg.body ? stripHtml(msg.body) : decodeSnippet(msg.snippet || "");
         created = msg.created;
         source = "api";
       }

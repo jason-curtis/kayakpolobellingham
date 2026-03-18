@@ -16,6 +16,22 @@ import {
   getGameTime,
   type Topic,
 } from "./email-parser";
+import { stripHtml, decodeSnippet } from "./groups-io-api";
+
+describe("stripHtml", () => {
+  it("converts HTML body to plain text", () => {
+    expect(stripHtml("<p>I'm in</p>")).toBe("I'm in");
+  });
+  it("converts br tags to newlines", () => {
+    expect(stripHtml("I'm in<br>Gary too")).toBe("I'm in\nGary too");
+  });
+  it("decodes HTML entities", () => {
+    expect(stripHtml("I&#39;m in")).toBe("I'm in");
+  });
+  it("strips nested HTML", () => {
+    expect(stripHtml('<div class="forcebreak"><p>In!</p></div>')).toBe("In!");
+  });
+});
 
 describe("resolveName", () => {
   it("resolves aliases and full names", () => {
@@ -253,6 +269,42 @@ describe("isBadName", () => {
   it("filters known false positives", () => {
     expect(isBadName("I'm")).toBe(true);
     expect(isBadName("Dorothy")).toBe(false);
+  });
+});
+
+describe("parseGameMessage — attribution via quoted text stripping", () => {
+  it("does not misattribute quoted reply text to the replier", async () => {
+    // Person B replies to Person A's "I'm in" — the email body includes the quoted text.
+    // parseGameMessage should strip the quoted text and only attribute the new content.
+    const result = await parseGameMessage({
+      subject: "Re: Wednesday 3/18 post in or out",
+      body: "I'm out this week\n\nOn Mon, Mar 16, 2026, Dorothy Burke wrote:\n> I'm in",
+      senderName: "Gary",
+      referenceDate: "2026-03-16T10:00:00",
+    });
+    expect(result.signups).toEqual([{ name: "Gary", status: "out" }]);
+    // Should NOT include Dorothy as "in" — that was quoted text
+    expect(result.signups.find((s) => s.name === "Dorothy")).toBeUndefined();
+  });
+
+  it("strips forwarded message text", async () => {
+    const result = await parseGameMessage({
+      subject: "Re: Sunday 3/22 post in or out",
+      body: "In!\n\n----- Original Message -----\nFrom: Jason\nI'm out",
+      senderName: "Glenn",
+      referenceDate: "2026-03-20T10:00:00",
+    });
+    expect(result.signups).toEqual([{ name: "Glenn", status: "in" }]);
+  });
+
+  it("passes referenceDate for day-name-only subjects", async () => {
+    const result = await parseGameMessage({
+      subject: "Wednesday Night Season Opener",
+      body: "I'm in",
+      senderName: "Jason Curtis",
+      referenceDate: "2026-03-04T16:48:23",
+    });
+    expect(result.gameDate).toBe("2026-03-11");
   });
 });
 

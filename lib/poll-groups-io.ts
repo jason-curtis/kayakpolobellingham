@@ -1,9 +1,10 @@
 /**
  * Poll groups.io API for new messages, parse signups, and apply to D1.
- * Replaces the Cloudflare Email Worker pipeline with direct API polling.
+ * Uses the unified parseGameMessage() pipeline for consistent parsing
+ * with the email worker path (stripQuotedText, body date fallback, LLM fallback).
  */
-import { fetchRecentMessages, decodeSnippet, type GroupsIoMessage } from "./groups-io-api";
-import { isGameTopic, extractGameDate, parseSignupsFromMessage, resolveName, resolveSender } from "./email-parser";
+import { fetchRecentMessages, decodeSnippet, stripHtml, messageUrl, type GroupsIoMessage } from "./groups-io-api";
+import { isGameTopic, parseGameMessage } from "./email-parser";
 import { applyInboundEmail } from "./apply-inbound-email";
 import { logger } from "./logger";
 
@@ -41,10 +42,20 @@ export interface PollResult {
   lastMsgNum: number;
 }
 
+/** Extract usable plain-text body from a Groups.io message. */
+function getMessageText(msg: GroupsIoMessage): string {
+  // Prefer full HTML body (stripped to text) over truncated snippet
+  if (msg.body && msg.body.trim()) {
+    return stripHtml(msg.body);
+  }
+  return decodeSnippet(msg.snippet);
+}
+
 /** Poll groups.io for new messages and apply any signups to D1. */
 export async function pollForNewMessages(
   db: D1,
   apiKey: string,
+  openrouterKey?: string,
 ): Promise<PollResult> {
   const cursor = await getCursor(db);
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, FETCH_LIMIT);
@@ -79,10 +90,19 @@ export async function pollForNewMessages(
       continue;
     }
 
-    const snippet = decodeSnippet(msg.snippet);
-    const senderName = resolveSender(msg.name);
-    const signups = parseSignupsFromMessage(snippet, senderName, { resolveName, resolveSender });
-    const gameDate = extractGameDate(subject);
+    const body = getMessageText(msg);
+
+    // Use the unified parseGameMessage() pipeline — same as the email worker path.
+    // This applies stripQuotedText(), body date fallback, and LLM fallback.
+    const result = await parseGameMessage({
+      subject,
+      body,
+      senderName: msg.name,
+      referenceDate: msg.created,
+      openrouterKey,
+    });
+
+    const sourceUrl = messageUrl(msg.msg_num);
 
     logger.info(
       {
@@ -90,28 +110,22 @@ export async function pollForNewMessages(
         msgNum: msg.msg_num,
         subject,
         sender: msg.name,
-        resolvedSender: senderName,
-        gameDate,
-        signupCount: signups.length,
-        signups,
-        snippet,
+        resolvedSender: result.senderName,
+        gameDate: result.gameDate,
+        signupCount: result.signups.length,
+        signups: result.signups,
+        bodyPreview: body.slice(0, 200),
       },
       "parsed groups.io message"
     );
 
-    if (signups.length === 0 || !gameDate) continue;
+    if (result.signups.length === 0 || !result.gameDate) continue;
 
-    const result = await applyInboundEmail(db, {
-      senderName,
-      signups,
-      gameDate,
-      isGameTopic: true,
-      rawBody: snippet,
-    });
+    const applied = await applyInboundEmail(db, result, sourceUrl, msg.created);
 
-    totalSignups += result.signupsApplied;
-    if (result.gameId && !gamesAffected.includes(result.gameId)) {
-      gamesAffected.push(result.gameId);
+    totalSignups += applied.signupsApplied;
+    if (applied.gameId && !gamesAffected.includes(applied.gameId)) {
+      gamesAffected.push(applied.gameId);
     }
   }
 
@@ -135,5 +149,82 @@ export async function pollForNewMessages(
     signupsApplied: totalSignups,
     gamesAffected,
     lastMsgNum: maxNum,
+  };
+}
+
+/** Re-process the last N messages regardless of cursor. Used for backfill after parser fixes. */
+export async function backfillRecentMessages(
+  db: D1,
+  apiKey: string,
+  openrouterKey?: string,
+  limit = 100,
+): Promise<PollResult> {
+  const messages = await fetchRecentMessages(apiKey, GROUP_ID, limit);
+  // Process oldest-first
+  const sorted = messages.sort((a, b) => a.msg_num - b.msg_num);
+
+  let totalSignups = 0;
+  const gamesAffected: string[] = [];
+
+  for (const msg of sorted) {
+    if (!isGameTopic(msg.subject)) continue;
+
+    const body = getMessageText(msg);
+    const result = await parseGameMessage({
+      subject: msg.subject,
+      body,
+      senderName: msg.name,
+      referenceDate: msg.created,
+      openrouterKey,
+    });
+
+    const sourceUrl = messageUrl(msg.msg_num);
+
+    logger.info(
+      {
+        event: "backfill_parsed",
+        msgNum: msg.msg_num,
+        subject: msg.subject,
+        sender: msg.name,
+        resolvedSender: result.senderName,
+        gameDate: result.gameDate,
+        signupCount: result.signups.length,
+        signups: result.signups,
+      },
+      "backfill parsed message"
+    );
+
+    if (result.signups.length === 0 || !result.gameDate) continue;
+
+    const applied = await applyInboundEmail(db, result, sourceUrl, msg.created);
+
+    totalSignups += applied.signupsApplied;
+    if (applied.gameId && !gamesAffected.includes(applied.gameId)) {
+      gamesAffected.push(applied.gameId);
+    }
+  }
+
+  // Update cursor to latest message
+  if (sorted.length > 0) {
+    const maxNum = Math.max(...sorted.map((m) => m.msg_num));
+    await setCursor(db, maxNum);
+  }
+
+  logger.info(
+    {
+      event: "backfill_complete",
+      messagesProcessed: sorted.length,
+      signupsApplied: totalSignups,
+      gamesAffected,
+    },
+    "backfill complete"
+  );
+
+  return {
+    messagesChecked: messages.length,
+    newMessages: sorted.length,
+    signupsApplied: totalSignups,
+    gamesAffected,
+    lastMsgNum: sorted.length > 0 ? Math.max(...sorted.map((m) => m.msg_num)) : 0,
   };
 }
