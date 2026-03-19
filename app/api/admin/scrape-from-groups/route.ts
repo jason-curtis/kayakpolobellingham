@@ -18,17 +18,35 @@ async function getDB() {
   return (env as { D1_DB: any }).D1_DB;
 }
 
-/** Write parsed games/signups to D1 (hist-*), return counts */
+/** Write parsed games/signups to D1 (uses bare date IDs, merges with existing games). */
 async function writeGamesAndSignups(db: any, games: ReturnType<typeof gamesMapToParsedGames>): Promise<{ gamesInserted: number; signupsInserted: number }> {
-  await db.prepare("DELETE FROM signups WHERE game_id LIKE 'hist-%'").run();
-  await db.prepare("DELETE FROM games WHERE id LIKE 'hist-%'").run();
+  // Clean up legacy hist-* duplicates: migrate their signups to bare-date games, then delete
+  const { results: histGames } = await db.prepare("SELECT id, date, time FROM games WHERE id LIKE 'hist-%'").all() as { results: { id: string; date: string; time: string }[] };
+  for (const hg of histGames) {
+    // If a bare-date game exists for this date, migrate signups
+    const bareGame = await db.prepare("SELECT id FROM games WHERE id = ?").bind(hg.date).first() as { id: string } | null;
+    if (bareGame) {
+      // Move signups that don't already exist on the bare-date game
+      const { results: histSignups } = await db.prepare("SELECT * FROM signups WHERE game_id = ?").bind(hg.id).all() as { results: any[] };
+      for (const hs of histSignups) {
+        const exists = await db.prepare("SELECT id FROM signups WHERE game_id = ? AND player_name = ?").bind(bareGame.id, hs.player_name).first();
+        if (!exists) {
+          await db.prepare(
+            "INSERT INTO signups (id, game_id, player_name, status, late, note, source_url, source_type, source_at, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+          ).bind(hs.id, bareGame.id, hs.player_name, hs.status, hs.late, hs.note, hs.source_url, hs.source_type, hs.source_at, hs.created_at, hs.updated_at).run();
+        }
+      }
+    }
+    await db.prepare("DELETE FROM signups WHERE game_id = ?").bind(hg.id).run();
+    await db.prepare("DELETE FROM games WHERE id = ?").bind(hg.id).run();
+  }
 
   const now = new Date().toISOString();
   let gamesInserted = 0;
   let signupsInserted = 0;
 
   for (const game of games) {
-    const gameId = `hist-${game.date}-${game.time}`;
+    const gameId = game.date; // Use bare date as ID (matches poller/email path)
     const deadline = `${game.date}T${game.time}:00`;
     await db
       .prepare(

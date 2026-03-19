@@ -7,6 +7,7 @@ import {
   parseSignupsFromMessage,
   extractGameDate,
   isGameTopic,
+  isCancellationSubject,
   parseDateFromTitle,
   parseRosterFromGameOn,
   isBadName,
@@ -31,6 +32,19 @@ describe("stripHtml", () => {
   it("strips nested HTML", () => {
     expect(stripHtml('<div class="forcebreak"><p>In!</p></div>')).toBe("In!");
   });
+  it("converts blockquote content to > prefixed lines", () => {
+    const html = '<p>I\'m out</p><blockquote><p>I\'m in</p></blockquote>';
+    const result = stripHtml(html);
+    expect(result).toContain("> I'm in");
+    expect(result).toContain("I'm out");
+  });
+  it("handles nested blockquotes with br tags", () => {
+    const html = '<p>Count me in</p><blockquote>Dorothy wrote:<br>I\'m in<br>Gary too</blockquote>';
+    const result = stripHtml(html);
+    expect(result).toContain("> Dorothy wrote:");
+    expect(result).toContain("> I'm in");
+    expect(result).toContain("> Gary too");
+  });
 });
 
 describe("resolveName", () => {
@@ -42,6 +56,10 @@ describe("resolveName", () => {
   });
   it("title-cases unknown names", () => {
     expect(resolveName("newbie")).toBe("Newbie");
+  });
+  it("title-cases each word for multi-word names", () => {
+    expect(resolveName("bob smith")).toBe("Bob Smith");
+    expect(resolveName("JANE DOE")).toBe("Jane Doe");
   });
 });
 
@@ -72,6 +90,12 @@ describe("stripQuotedText", () => {
   it("stops at multi-line Gmail quoted reply", () => {
     const body = "Maybe\n\nOn Sat, Mar 7, 2026, 07:48 Dorothy Burke via groups.io <dorothy_burke=\ncomcast.net@groups.io> wrote:\n> I'm in";
     expect(stripQuotedText(body)).toBe("Maybe");
+  });
+  it("filters > prefixed lines from converted blockquotes", () => {
+    // After stripHtml converts blockquotes to > lines, stripQuotedText should skip them
+    const body = "I'm out\n> I'm in\n> Gary too";
+    const result = stripQuotedText(body);
+    expect(result).toBe("I'm out");
   });
 });
 
@@ -243,6 +267,21 @@ describe("isGameTopic", () => {
   });
 });
 
+describe("isCancellationSubject", () => {
+  it("detects 'game cancelled'", () => {
+    expect(isCancellationSubject("Game Cancelled - Wednesday 3/11")).toBe(true);
+    expect(isCancellationSubject("game canceled")).toBe(true);
+  });
+  it("detects 'no game'", () => {
+    expect(isCancellationSubject("No game this week")).toBe(true);
+    expect(isCancellationSubject("No Game Wednesday")).toBe(true);
+  });
+  it("returns false for normal game subjects", () => {
+    expect(isCancellationSubject("Wednesday 3/11 post in or out")).toBe(false);
+    expect(isCancellationSubject("Game on!")).toBe(false);
+  });
+});
+
 describe("parseDateFromTitle", () => {
   it("parses M/D/YY with ref year from first message", () => {
     expect(parseDateFromTitle("Sunday 3/2/26", "2026-01-01")).toBe("2026-03-02");
@@ -315,8 +354,8 @@ describe("parseGameMessage", () => {
       body: "I'm in",
       senderName: "Gary Smith",
     });
-    expect(result.senderName).toBe("Gary smith");
-    expect(result.signups).toEqual([{ name: "Gary smith", status: "in" }]);
+    expect(result.senderName).toBe("Gary Smith");
+    expect(result.signups).toEqual([{ name: "Gary Smith", status: "in" }]);
     expect(result.gameDate).toMatch(/2026-03-02/);
     expect(result.isGameTopic).toBe(true);
   });
@@ -350,6 +389,42 @@ describe("parseGameMessage", () => {
     });
     expect(result.gameDate).toBe("2026-03-11");
     expect(result.signups).toEqual([{ name: "Gary", status: "in" }]);
+  });
+  it("sets isCancellation for cancellation subjects", async () => {
+    const result = await parseGameMessage({
+      subject: "Game Cancelled - Wednesday 3/11",
+      body: "Not enough players",
+      senderName: "Dorothy Burke",
+      referenceDate: "2026-03-10T10:00:00",
+    });
+    expect(result.isCancellation).toBe(true);
+    expect(result.gameDate).toBe("2026-03-11");
+  });
+  it("sets isCancellation false for normal subjects", async () => {
+    const result = await parseGameMessage({
+      subject: "Wednesday 3/11 post in or out",
+      body: "I'm in",
+      senderName: "Jason Curtis",
+      referenceDate: "2026-03-09T10:00:00",
+    });
+    expect(result.isCancellation).toBe(false);
+  });
+});
+
+describe("parseGameMessage — HTML blockquote pipeline", () => {
+  it("does not misattribute HTML blockquote content after stripHtml", async () => {
+    // Simulating what happens when poller gets HTML body with blockquotes:
+    // stripHtml converts blockquotes to > prefixed lines, then parseGameMessage
+    // uses stripQuotedText to filter them out.
+    const htmlBody = '<p>I\'m out</p><blockquote><p>I\'m in</p></blockquote>';
+    const plainBody = stripHtml(htmlBody);
+    const result = await parseGameMessage({
+      subject: "Re: Wednesday 3/18 post in or out",
+      body: plainBody,
+      senderName: "Gary",
+      referenceDate: "2026-03-16T10:00:00",
+    });
+    expect(result.signups).toEqual([{ name: "Gary", status: "out" }]);
   });
 });
 

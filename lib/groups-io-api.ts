@@ -143,7 +143,18 @@ export function decodeSnippet(snippet: string): string {
 
 /** Convert HTML body to plain text (for Groups.io message body field). */
 export function stripHtml(html: string): string {
-  let text = html
+  // Convert blockquote content to "> " prefixed lines so stripQuotedText() can filter them
+  let text = html.replace(/<blockquote[^>]*>([\s\S]*?)<\/blockquote>/gi, (_match, inner: string) => {
+    // Strip HTML inside the blockquote first, then prefix each line with >
+    const plain = inner
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<\/p>/gi, "\n")
+      .replace(/<\/div>/gi, "\n")
+      .replace(/<[^>]*>/g, "");
+    const lines = decodeSnippet(plain).split("\n");
+    return "\n" + lines.map((l: string) => `> ${l}`).join("\n") + "\n";
+  });
+  text = text
     .replace(/<br\s*\/?>/gi, "\n")
     .replace(/<\/p>/gi, "\n")
     .replace(/<\/div>/gi, "\n")

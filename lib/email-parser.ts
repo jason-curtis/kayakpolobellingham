@@ -17,6 +17,7 @@ export interface EmailParseResult {
   signups: Signup[];
   gameDate: string | null;
   isGameTopic: boolean;
+  isCancellation: boolean;
   rawBody: string;
 }
 
@@ -95,7 +96,8 @@ export function resolveName(name: string): string {
   if (!trimmed) return "";
   const lower = trimmed.toLowerCase();
   if (NAME_ALIASES[lower]) return NAME_ALIASES[lower];
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  // Title-case each word (e.g. "bob smith" → "Bob Smith")
+  return trimmed.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 export function resolveSender(sender: string): string {
@@ -507,6 +509,14 @@ export function isGameTopic(title: string): boolean {
   return false;
 }
 
+/** Detect cancellation subjects (e.g. "Game cancelled", "No game this week"). */
+export function isCancellationSubject(subject: string): boolean {
+  const t = subject.toLowerCase();
+  if (/\bgame\s+cancell?ed\b/.test(t)) return true;
+  if (/\bno\s+game\b/.test(t)) return true;
+  return false;
+}
+
 // ── Unified message parsing ──────────────────────────────────────────────────
 //
 // Single entry point for all email/message parsing: real-time inbound emails,
@@ -558,6 +568,7 @@ export async function parseGameMessage(opts: {
     signups,
     gameDate,
     isGameTopic: isGame,
+    isCancellation: isCancellationSubject(opts.subject),
     rawBody: cleaned.trim(),
   };
 }
