@@ -18,6 +18,7 @@ export async function applyInboundEmail(
   result: EmailParseResult,
   sourceUrl?: string | null,
   sourceAt?: string | null,
+  options?: { bypassDeadline?: boolean },
 ): Promise<{ gameId: string | null; signupsApplied: number }> {
   if (!result.gameDate) {
     return { gameId: null, signupsApplied: 0 };
@@ -61,7 +62,7 @@ export async function applyInboundEmail(
       source_url: sourceUrl ?? null,
       source_type: "email",
       source_at: sourceAt ?? null,
-    });
+    }, { bypassDeadline: options?.bypassDeadline });
   }
 
   return { gameId: game!.id, signupsApplied: result.signups.length };

@@ -68,12 +68,12 @@ describe("applyInboundEmail", () => {
       source_url: null,
       source_type: "email",
       source_at: null,
-    });
+    }, { bypassDeadline: undefined });
     expect(d1.addSignup).toHaveBeenNthCalledWith(2, "game-123", "Dorothy", "out", mockDb, {
       source_url: null,
       source_type: "email",
       source_at: null,
-    });
+    }, { bypassDeadline: undefined });
     expect(out).toEqual({ gameId: "game-123", signupsApplied: 2 });
   });
 
@@ -98,7 +98,7 @@ describe("applyInboundEmail", () => {
       source_url: null,
       source_type: "email",
       source_at: null,
-    });
+    }, { bypassDeadline: undefined });
     expect(out).toEqual({ gameId: "game-new", signupsApplied: 1 });
   });
 

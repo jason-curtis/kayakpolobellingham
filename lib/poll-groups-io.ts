@@ -220,7 +220,7 @@ export async function backfillRecentMessages(
 
     if (result.signups.length === 0 || !result.gameDate) continue;
 
-    const applied = await applyInboundEmail(db, result, sourceUrl, msg.created);
+    const applied = await applyInboundEmail(db, result, sourceUrl, msg.created, { bypassDeadline: true });
 
     totalSignups += applied.signupsApplied;
     if (applied.gameId && !gamesAffected.includes(applied.gameId)) {

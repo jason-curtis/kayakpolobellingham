@@ -207,7 +207,8 @@ export async function addSignup(
   playerName: string,
   status: "in" | "out" | "maybe",
   database?: D1 | null,
-  source?: SignupSource
+  source?: SignupSource,
+  options?: { bypassDeadline?: boolean }
 ): Promise<{ success: boolean; results?: any }> {
   const d = await db(database);
   const now = new Date().toISOString();
@@ -218,7 +219,7 @@ export async function addSignup(
     time: string;
     signup_deadline: string;
   } | null;
-  if (game?.date && game?.time) {
+  if (!options?.bypassDeadline && game?.date && game?.time) {
     const gameStart = parsePacific(`${game.date}T${game.time}`);
     if (new Date(now) >= gameStart) {
       throw new Error("Game has already started — signups are closed");
