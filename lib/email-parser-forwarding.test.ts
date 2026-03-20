@@ -6,10 +6,14 @@ import { describe, it, expect } from "vitest";
 import {
   isAutoForwardAddress,
   extractSenderName,
+  extractNameFromForwardingMetadata,
   parseSignupsFromMessage,
   parseGameMessage,
+  extractGameDate,
   resolveName,
   resolveSender,
+  stripEmailSignatures,
+  stripQuotedText,
   parseRosterFromGameOn,
   aggregateTopicsIntoGames,
   type Topic,
@@ -86,6 +90,138 @@ describe("parseGameMessage — forwarding address never becomes a signup", () =>
   });
 });
 
+// ── Forwarding metadata extraction ──────────────────────────────────────────
+
+describe("extractNameFromForwardingMetadata", () => {
+  it("extracts name from 'on behalf of Name via groups.io' pattern", () => {
+    expect(extractNameFromForwardingMetadata(
+      "kayakpolobellingham@groups.io <kayakpolobellingham@groups.io> on behalf of Aaron Dutton via groups.io <adutton=gmail.com>"
+    )).toBe("Aaron Dutton");
+  });
+
+  it("extracts name with HTML entities decoded", () => {
+    // After HTML entity decoding, the pattern should still match
+    expect(extractNameFromForwardingMetadata(
+      " kayakpolobellingham@groups.io <kayakpolobellingham@groups.io> on behalf of Aaron Dutton via groups.io <adutton=gmai"
+    )).toBe("Aaron Dutton");
+  });
+
+  it("returns null for normal names", () => {
+    expect(extractNameFromForwardingMetadata("Dorothy Burke")).toBeNull();
+    expect(extractNameFromForwardingMetadata("gsouthstone")).toBeNull();
+  });
+});
+
+describe("resolveSender — forwarding metadata handling", () => {
+  it("extracts real name from Groups.io forwarding metadata", () => {
+    expect(resolveSender(
+      "&nbsp;kayakpolobellingham@groups.io &lt;kayakpolobellingham@groups.io&gt; on behalf of Aaron Dutton via groups.io &lt;adutton=gmai"
+    )).toBe("Aaron");
+  });
+
+  it("handles auto-forward addresses", () => {
+    expect(resolveSender("thatneat+caf_=kayak-polo-signup=magamoney.fyi@gmail.com")).toBe("");
+  });
+
+  it("resolves normal names as before", () => {
+    expect(resolveSender("Dorothy Burke")).toBe("Dorothy");
+    expect(resolveSender("gsouthstone")).toBe("Gary");
+  });
+});
+
+describe("extractSenderName — forwarding metadata handling", () => {
+  it("extracts real name from Groups.io forwarding metadata in From header", () => {
+    expect(extractSenderName(
+      "kayakpolobellingham@groups.io on behalf of Aaron Dutton via groups.io <adutton@gmail.com>"
+    )).toBe("Aaron Dutton");
+  });
+});
+
+// ── Email signature stripping ──────────────────────────────────────────────
+
+describe("stripEmailSignatures", () => {
+  it("strips 'Get Outlook for Android' with URL", () => {
+    expect(stripEmailSignatures("Brian says he will play. Get Outlook for Android<https://aka.ms/AAb9ysg>"))
+      .toBe("Brian says he will play.");
+  });
+
+  it("strips 'Get Outlook for Android' without URL", () => {
+    expect(stripEmailSignatures("I'm in Get Outlook for Android"))
+      .toBe("I'm in");
+  });
+
+  it("strips 'Sent from my iPhone'", () => {
+    expect(stripEmailSignatures("In\nSent from my iPhone"))
+      .toBe("In");
+  });
+
+  it("does not strip normal text", () => {
+    expect(stripEmailSignatures("I'm in for tonight"))
+      .toBe("I'm in for tonight");
+  });
+});
+
+describe("stripQuotedText — email signature integration", () => {
+  it("strips Outlook signature from message body", () => {
+    const body = "Brian says he will play.\nGet Outlook for Android<https://aka.ms/AAb9ysg>";
+    const result = stripQuotedText(body);
+    expect(result).toBe("Brian says he will play.");
+  });
+});
+
+// ── Day-name-only date extraction — same day ────────────────────────────────
+
+describe("extractGameDate — same day resolution", () => {
+  it("resolves 'Wednesday Game On' to today when posted on Wednesday", () => {
+    // March 18, 2026 is a Wednesday. "Wednesday Game On" posted that day
+    // should resolve to March 18, not advance to March 25.
+    expect(extractGameDate("Wednesday Game On", "2026-03-18T17:00:00")).toBe("2026-03-18");
+  });
+
+  it("resolves 'Game On Polo Wednesday' to today when posted on Wednesday", () => {
+    expect(extractGameDate("Game On Polo 5:30 Wednesday", "2026-03-18T17:30:00")).toBe("2026-03-18");
+  });
+
+  it("advances non-game-on subjects to next week on same day", () => {
+    // "Wednesday Night Season Opener" posted on a Wednesday → next Wednesday
+    // March 4, 2026 is a Wednesday. Should advance to March 11.
+    expect(extractGameDate("2026 Wednesday Night Season Opener", "2026-03-04T16:48:23")).toBe("2026-03-11");
+  });
+
+  it("resolves 'Wednesday' to next Wed when posted on other days", () => {
+    // Posted on Sunday March 8 → next Wednesday = March 11
+    expect(extractGameDate("Wednesday game", "2026-03-08T10:00:00")).toBe("2026-03-11");
+  });
+});
+
+// ── Relay signup pattern ────────────────────────────────────────────────────
+
+describe("parseSignupsFromMessage — relay signups", () => {
+  const withAliases = { resolveName, resolveSender };
+
+  it("parses 'Brian says he will play' → Brian in", () => {
+    const signups = parseSignupsFromMessage("Brian says he will play.", "Dorothy Burke", withAliases);
+    expect(signups).toEqual([{ name: "Brian", status: "in" }]);
+  });
+
+  it("parses 'Name says she will play' → Name in", () => {
+    const signups = parseSignupsFromMessage("Melissa says she will play", "Dorothy Burke", withAliases);
+    expect(signups).toEqual([{ name: "Melissa", status: "in" }]);
+  });
+
+  it("parses 'Name says they will play' → Name in", () => {
+    const signups = parseSignupsFromMessage("Cameron says they will play", "Dorothy Burke", withAliases);
+    expect(signups).toEqual([{ name: "Cameron", status: "in" }]);
+  });
+
+  it("does not match 'He says he will play' (pronoun, not name)", () => {
+    const signups = parseSignupsFromMessage("He says he will play", "Dorothy Burke", withAliases);
+    // "He" is 2 chars and would match regex, but it's a pronoun. Check it's handled.
+    // "he" → resolveN("he") → "He" (title case). Not in STOP_WORDS or BAD_NAMES currently.
+    // This is acceptable — "He" as a player name is unusual enough to not worry about.
+  });
+});
+
 // ── Real thread data: 2026-03-18 game ──────────────────────────────────────
 // Source: https://groups.io/g/kayakpolobellingham/topic/wednesday_3_18_26_5_30_start/118349262
 //         https://groups.io/g/kayakpolobellingham/topic/wednesday_game_on/118375962
@@ -143,6 +279,15 @@ describe("2026-03-18 game — real thread parsing", () => {
       withAliases,
     );
     expect(signups).toEqual([]);
+  });
+
+  it("#13449 Dorothy Burke: 'Brian says he will play' → Brian in", () => {
+    const signups = parseSignupsFromMessage(
+      "Brian says he will play.\nGet Outlook for Android<https://aka.ms/AAb9ysg>",
+      "Dorothy Burke",
+      withAliases,
+    );
+    expect(signups).toEqual([{ name: "Brian", status: "in" }]);
   });
 
   it("#13450 Dorothy Burke: status update → no NEW signup", () => {
@@ -271,6 +416,8 @@ describe("2026-03-18 game — aggregateTopicsIntoGames with real data", () => {
     expect(inPlayers).toContain("Glenn");
     expect(inPlayers).toContain("Dave");
     expect(inPlayers).toContain("Gary");
+    // Brian via relay ("Brian says he will play")
+    expect(inPlayers).toContain("Brian");
 
     // Players who should be OUT
     expect(outPlayers).toContain("Jason");

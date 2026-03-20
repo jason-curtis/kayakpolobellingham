@@ -82,10 +82,10 @@ describe("extractSenderName", () => {
 describe("stripQuotedText", () => {
   it("stops at forwarded/original message", () => {
     const body = "I'm in\n\n----- Original Message -----\nFrom: other";
-    expect(stripQuotedText(body)).toBe("I'm in\n");
+    expect(stripQuotedText(body)).toBe("I'm in");
   });
   it("stops at On ... wrote:", () => {
-    expect(stripQuotedText("yes\n\nOn Mon, Bob wrote:\n>")).toBe("yes\n");
+    expect(stripQuotedText("yes\n\nOn Mon, Bob wrote:\n>")).toBe("yes");
   });
   it("stops at multi-line Gmail quoted reply", () => {
     const body = "Maybe\n\nOn Sat, Mar 7, 2026, 07:48 Dorothy Burke via groups.io <dorothy_burke=\ncomcast.net@groups.io> wrote:\n> I'm in";
