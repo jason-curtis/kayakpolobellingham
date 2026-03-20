@@ -152,6 +152,27 @@ export async function pollForNewMessages(
   };
 }
 
+/** Delete signups attributed to auto-forwarding addresses or forwarding metadata. */
+async function cleanupForwardingSignups(db: D1): Promise<number> {
+  // Clean up Gmail auto-forward addresses (+caf_= pattern)
+  const r1 = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%+caf_%=%'")
+    .run();
+  // Clean up Groups.io forwarding metadata ("on behalf of" in player names)
+  const r2 = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%on behalf of%via groups.io%'")
+    .run();
+  // Clean up HTML-entity-laden forwarding metadata (&nbsp; prefixed groups.io addresses)
+  const r3 = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%groups.io%on behalf of%'")
+    .run();
+  const deleted = (r1?.changes ?? 0) + (r2?.changes ?? 0) + (r3?.changes ?? 0);
+  if (deleted > 0) {
+    logger.info({ event: "cleanup_forwarding", deleted }, "deleted forwarding address signups");
+  }
+  return deleted;
+}
+
 /** Re-process the last N messages regardless of cursor. Used for backfill after parser fixes. */
 export async function backfillRecentMessages(
   db: D1,
@@ -159,6 +180,9 @@ export async function backfillRecentMessages(
   openrouterKey?: string,
   limit = 100,
 ): Promise<PollResult> {
+  // Clean up any existing signups from auto-forwarding addresses before re-processing
+  await cleanupForwardingSignups(db);
+
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, limit);
   // Process oldest-first
   const sorted = messages.sort((a, b) => a.msg_num - b.msg_num);

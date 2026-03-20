@@ -8,6 +8,7 @@ import {
   getGameByDate,
   createGame,
   addSignup,
+  updateGame,
   countMidweekGamesInYear,
 } from "./d1";
 
@@ -18,7 +19,30 @@ export async function applyInboundEmail(
   sourceUrl?: string | null,
   sourceAt?: string | null,
 ): Promise<{ gameId: string | null; signupsApplied: number }> {
-  if (!result.gameDate || result.signups.length === 0) {
+  if (!result.gameDate) {
+    return { gameId: null, signupsApplied: 0 };
+  }
+
+  // Handle cancellation: set game status to 'cancelled' if it exists
+  if (result.isCancellation) {
+    const game = await getGameByDate(database, result.gameDate);
+    if (game) {
+      await updateGame(game.id, { status: "cancelled" }, database);
+      return { gameId: game.id, signupsApplied: 0 };
+    }
+    // Game doesn't exist yet — create it as cancelled
+    const year = result.gameDate.substring(0, 4);
+    const midweekCount = await countMidweekGamesInYear(database, year, result.gameDate);
+    const time = getGameTime(result.gameDate, midweekCount);
+    const created = await createGame(result.gameDate, time, undefined, database);
+    if (created) {
+      await updateGame(created.id, { status: "cancelled" }, database);
+      return { gameId: created.id, signupsApplied: 0 };
+    }
+    return { gameId: null, signupsApplied: 0 };
+  }
+
+  if (result.signups.length === 0) {
     return { gameId: null, signupsApplied: 0 };
   }
 
@@ -32,12 +56,8 @@ export async function applyInboundEmail(
     game = { id: created.id };
   }
 
-  // Truncate rawBody for note (keep first 200 chars)
-  const note = result.rawBody ? result.rawBody.slice(0, 200) : null;
-
   for (const signup of result.signups) {
     await addSignup(game!.id, signup.name, signup.status, database, {
-      note,
       source_url: sourceUrl ?? null,
       source_type: "email",
       source_at: sourceAt ?? null,

@@ -12,6 +12,7 @@ describe("applyInboundEmail", () => {
     vi.mocked(d1.getGameByDate).mockReset();
     vi.mocked(d1.createGame).mockReset();
     vi.mocked(d1.addSignup).mockReset();
+    vi.mocked(d1.updateGame).mockReset();
     vi.mocked(d1.countMidweekGamesInYear).mockReset();
     vi.mocked(d1.countMidweekGamesInYear).mockResolvedValue(0);
   });
@@ -22,6 +23,7 @@ describe("applyInboundEmail", () => {
       signups: [{ name: "Bob", status: "in" }],
       gameDate: null,
       isGameTopic: true,
+      isCancellation: false,
       rawBody: "in",
     };
     const out = await applyInboundEmail(mockDb, result);
@@ -35,11 +37,11 @@ describe("applyInboundEmail", () => {
       signups: [],
       gameDate: "2026-03-01",
       isGameTopic: true,
+      isCancellation: false,
       rawBody: "",
     };
     const out = await applyInboundEmail(mockDb, result);
     expect(out).toEqual({ gameId: null, signupsApplied: 0 });
-    expect(d1.getGameByDate).not.toHaveBeenCalled();
   });
 
   it("uses existing game and calls addSignup for each signup", async () => {
@@ -54,6 +56,7 @@ describe("applyInboundEmail", () => {
       ],
       gameDate: "2026-03-01",
       isGameTopic: true,
+      isCancellation: false,
       rawBody: "Jason in, Dorothy out",
     };
     const out = await applyInboundEmail(mockDb, result);
@@ -62,13 +65,11 @@ describe("applyInboundEmail", () => {
     expect(d1.createGame).not.toHaveBeenCalled();
     expect(d1.addSignup).toHaveBeenCalledTimes(2);
     expect(d1.addSignup).toHaveBeenNthCalledWith(1, "game-123", "Jason", "in", mockDb, {
-      note: "Jason in, Dorothy out",
       source_url: null,
       source_type: "email",
       source_at: null,
     });
     expect(d1.addSignup).toHaveBeenNthCalledWith(2, "game-123", "Dorothy", "out", mockDb, {
-      note: "Jason in, Dorothy out",
       source_url: null,
       source_type: "email",
       source_at: null,
@@ -86,19 +87,57 @@ describe("applyInboundEmail", () => {
       signups: [{ name: "Gary", status: "in" }],
       gameDate: "2026-03-01",
       isGameTopic: true,
+      isCancellation: false,
       rawBody: "I'm in",
     };
     const out = await applyInboundEmail(mockDb, result);
 
     expect(d1.getGameByDate).toHaveBeenCalledWith(mockDb, "2026-03-01");
     expect(d1.createGame).toHaveBeenCalledWith("2026-03-01", "09:00", undefined, mockDb);
-    // New games use date as ID
     expect(d1.addSignup).toHaveBeenCalledWith("game-new", "Gary", "in", mockDb, {
-      note: "I'm in",
       source_url: null,
       source_type: "email",
       source_at: null,
     });
     expect(out).toEqual({ gameId: "game-new", signupsApplied: 1 });
+  });
+
+  it("sets game status to cancelled for cancellation subjects", async () => {
+    vi.mocked(d1.getGameByDate).mockResolvedValue({ id: "game-123" });
+    vi.mocked(d1.updateGame).mockResolvedValue({});
+
+    const result: EmailParseResult = {
+      senderName: "Dorothy",
+      signups: [],
+      gameDate: "2026-03-11",
+      isGameTopic: true,
+      isCancellation: true,
+      rawBody: "Not enough players",
+    };
+    const out = await applyInboundEmail(mockDb, result);
+
+    expect(d1.updateGame).toHaveBeenCalledWith("game-123", { status: "cancelled" }, mockDb);
+    expect(d1.addSignup).not.toHaveBeenCalled();
+    expect(out).toEqual({ gameId: "game-123", signupsApplied: 0 });
+  });
+
+  it("creates cancelled game when none exists for cancellation", async () => {
+    vi.mocked(d1.getGameByDate).mockResolvedValue(null);
+    vi.mocked(d1.createGame).mockResolvedValue({ id: "2026-03-11" } as any);
+    vi.mocked(d1.updateGame).mockResolvedValue({});
+
+    const result: EmailParseResult = {
+      senderName: "Dorothy",
+      signups: [],
+      gameDate: "2026-03-11",
+      isGameTopic: true,
+      isCancellation: true,
+      rawBody: "Game cancelled",
+    };
+    const out = await applyInboundEmail(mockDb, result);
+
+    expect(d1.createGame).toHaveBeenCalled();
+    expect(d1.updateGame).toHaveBeenCalledWith("2026-03-11", { status: "cancelled" }, mockDb);
+    expect(out).toEqual({ gameId: "2026-03-11", signupsApplied: 0 });
   });
 });

@@ -173,7 +173,7 @@ export async function resolvePlayerName(inputName: string, database?: D1 | null)
     const aliases: string[] = r.aliases ? JSON.parse(r.aliases) : [];
     if (aliases.some((a: string) => a.toLowerCase() === trimmed.toLowerCase())) return r.name;
   }
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  return trimmed.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 // ── Signups ──────────────────────────────────────────────────────────────────

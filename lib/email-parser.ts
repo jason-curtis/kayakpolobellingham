@@ -17,6 +17,7 @@ export interface EmailParseResult {
   signups: Signup[];
   gameDate: string | null;
   isGameTopic: boolean;
+  isCancellation: boolean;
   rawBody: string;
 }
 
@@ -49,6 +50,18 @@ export interface ParsedGame {
 export interface SignupParseOptions {
   resolveName?: (name: string) => string;
   resolveSender?: (sender: string) => string;
+}
+
+// ── Auto-forward address detection ──────────────────────────────────────────
+// Gmail auto-forwarding rewrites the envelope From to include +caf_= in the
+// local part. These addresses must never be treated as player names.
+
+/**
+ * Detect Gmail auto-forwarding addresses (envelope From rewriting).
+ * Pattern: `user+caf_=destination=domain@gmail.com`
+ */
+export function isAutoForwardAddress(emailOrName: string): boolean {
+  return /\+caf_=/.test(emailOrName);
 }
 
 // ── Name aliasing ────────────────────────────────────────────────────────────
@@ -95,11 +108,26 @@ export function resolveName(name: string): string {
   if (!trimmed) return "";
   const lower = trimmed.toLowerCase();
   if (NAME_ALIASES[lower]) return NAME_ALIASES[lower];
-  return trimmed.charAt(0).toUpperCase() + trimmed.slice(1).toLowerCase();
+  // Title-case each word (e.g. "bob smith" → "Bob Smith")
+  return trimmed.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
 }
 
 export function resolveSender(sender: string): string {
-  return resolveName(sender);
+  // Decode HTML entities that may appear in Groups.io API name fields
+  let clean = sender
+    .replace(/&nbsp;/g, " ").replace(/\u00a0/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .trim();
+
+  // Strip Groups.io forwarding metadata: "...on behalf of Name via groups.io..."
+  const forwarded = extractNameFromForwardingMetadata(clean);
+  if (forwarded) return resolveName(forwarded);
+
+  // Auto-forward addresses should never become sender names
+  if (isAutoForwardAddress(clean)) return "";
+
+  return resolveName(clean);
 }
 
 function titleCase(s: string): string {
@@ -139,7 +167,25 @@ function isStopWord(word: string): boolean {
 
 // ── Sender / body (single email) ────────────────────────────────────────────
 
+/**
+ * Extract the real sender name from Groups.io "on behalf of" forwarding metadata.
+ * Pattern: "...@groups.io <...@groups.io> on behalf of Aaron Dutton via groups.io <adutton=..."
+ * Returns the extracted name or null if not a forwarding metadata string.
+ */
+export function extractNameFromForwardingMetadata(text: string): string | null {
+  const m = text.match(/on behalf of\s+(.+?)\s+via\s+groups\.io/i);
+  if (m) return m[1].trim();
+  return null;
+}
+
 export function extractSenderName(from: string): string {
+  // Auto-forward addresses should never become sender names
+  if (isAutoForwardAddress(from)) return "";
+
+  // Groups.io forwarding metadata: extract real name from "on behalf of Name via groups.io"
+  const forwarded = extractNameFromForwardingMetadata(from);
+  if (forwarded) return forwarded;
+
   const quoted = from.match(/^"([^"]+)"\s*<[^>]+>$/);
   if (quoted) return quoted[1].trim();
   const unquoted = from.match(/^([^<]+)<[^>]+>$/);
@@ -147,6 +193,16 @@ export function extractSenderName(from: string): string {
   const i = from.indexOf("@");
   if (i > 0) return from.slice(0, i).trim();
   return from.trim();
+}
+
+/** Strip common mobile email signatures from text. */
+export function stripEmailSignatures(text: string): string {
+  return text
+    .replace(/\s*Get Outlook for (?:Android|iOS)\s*<[^>]*>/gi, "")
+    .replace(/\s*Get Outlook for (?:Android|iOS)\s*/gi, "")
+    .replace(/\s*Sent from my (?:iPhone|iPad|Galaxy|Pixel|Android)\s*/gi, "")
+    .replace(/\s*Sent from (?:Yahoo Mail|Mail) (?:for|on) \w+\s*/gi, "")
+    .trim();
 }
 
 export function stripQuotedText(body: string): string {
@@ -162,12 +218,14 @@ export function stripQuotedText(body: string): string {
   }
 
   // Second pass: catch multi-line "On <date> ... wrote:" (Gmail wraps long sender names)
-  const joined = kept.join("\n");
+  let joined = kept.join("\n");
   const multiLineQuote = joined.search(/^On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b.+\d{4}/m);
   if (multiLineQuote !== -1) {
-    return joined.slice(0, multiLineQuote).trimEnd();
+    joined = joined.slice(0, multiLineQuote).trimEnd();
   }
-  return joined;
+
+  // Strip mobile email signatures
+  return stripEmailSignatures(joined);
 }
 
 // ── Signup line parsing ─────────────────────────────────────────────────────
@@ -243,6 +301,16 @@ export function parseSignupsFromMessage(
       const name = resolveN(possessiveIn[1]);
       if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
         results.push({ name, status: possessiveIn[2] as SignupStatus });
+        continue;
+      }
+    }
+
+    // "Name says he/she will play" — someone relaying another player's signup
+    const saysPlay = lower.match(/^([a-z][a-z'\-]{1,15})\s+says?\s+(?:he|she|they)\s+will\s+play\b/);
+    if (saysPlay) {
+      const name = resolveN(saysPlay[1]);
+      if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
+        results.push({ name, status: "in" });
         continue;
       }
     }
@@ -360,7 +428,10 @@ export function extractGameDate(subject: string, referenceDate?: string): string
         const refDay = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
         const refDow = refDay.getDay();
         let daysAhead = (targetDow - refDow + 7) % 7;
-        if (daysAhead === 0) daysAhead = 7; // same day = next week
+        // daysAhead=0 means same day of the week as the reference date.
+        // "Game on" subjects are about today's game; other subjects (e.g. "Season Opener")
+        // posted on the same day of week typically mean next week's game.
+        if (daysAhead === 0 && !/game\s*on/i.test(t)) daysAhead = 7;
         const next = new Date(refDay);
         next.setDate(next.getDate() + daysAhead);
         result = formatDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
@@ -507,6 +578,14 @@ export function isGameTopic(title: string): boolean {
   return false;
 }
 
+/** Detect cancellation subjects (e.g. "Game cancelled", "No game this week"). */
+export function isCancellationSubject(subject: string): boolean {
+  const t = subject.toLowerCase();
+  if (/\bgame\s+cancell?ed\b/.test(t)) return true;
+  if (/\bno\s+game\b/.test(t)) return true;
+  return false;
+}
+
 // ── Unified message parsing ──────────────────────────────────────────────────
 //
 // Single entry point for all email/message parsing: real-time inbound emails,
@@ -558,6 +637,7 @@ export async function parseGameMessage(opts: {
     signups,
     gameDate,
     isGameTopic: isGame,
+    isCancellation: isCancellationSubject(opts.subject),
     rawBody: cleaned.trim(),
   };
 }

@@ -15,9 +15,32 @@ async function matchesAllowList(from: string): Promise<boolean> {
   });
 }
 
-async function getTextBody(raw: ReadableStream): Promise<string> {
+interface ParsedEmail {
+  textBody: string;
+  /** MIME From header (original sender), if available */
+  mimeFrom: string | null;
+}
+
+async function parseEmail(raw: ReadableStream): Promise<ParsedEmail> {
   const email = await PostalMime.parse(raw);
-  return email.text ?? email.html?.replace(/<[^>]+>/g, " ").trim() ?? "";
+  const textBody = email.text ?? email.html?.replace(/<[^>]+>/g, " ").trim() ?? "";
+
+  // Extract original sender from MIME From header.
+  // When Gmail auto-forwards, the envelope From is rewritten (e.g. user+caf_=dest@gmail.com)
+  // but the MIME From header preserves the original sender.
+  let mimeFrom: string | null = null;
+  if (email.from) {
+    const addr = email.from;
+    if (addr.name && addr.address) {
+      mimeFrom = `${addr.name} <${addr.address}>`;
+    } else if (addr.address) {
+      mimeFrom = addr.address;
+    } else if (addr.name) {
+      mimeFrom = addr.name;
+    }
+  }
+
+  return { textBody, mimeFrom };
 }
 
 export default {
@@ -42,16 +65,27 @@ export default {
       return;
     }
 
-    const textBody = await getTextBody(message.raw);
+    const { textBody, mimeFrom } = await parseEmail(message.raw);
+
+    // Use the MIME From header (original sender) when available, falling back to
+    // the envelope From. Gmail auto-forwarding rewrites the envelope From to
+    // something like thatneat+caf_=kayak-polo-signup=magamoney.fyi@gmail.com,
+    // but the MIME From preserves the original sender identity.
+    const effectiveFrom = mimeFrom ?? message.from;
+
+    logger.info(
+      { event: "email_from_resolved", envelopeFrom: message.from, mimeFrom, effectiveFrom },
+      "resolved sender from MIME headers"
+    );
 
     try {
       await env.MAIN_APP.handleEmail({
-        from: message.from,
+        from: effectiveFrom,
         subject,
         textBody,
       });
       logger.info(
-        { event: "email_handled", from: message.from, subject },
+        { event: "email_handled", from: effectiveFrom, envelopeFrom: message.from, subject },
         "email forwarded to main app"
       );
     } catch (err) {
