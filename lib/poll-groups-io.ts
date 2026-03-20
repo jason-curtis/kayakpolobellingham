@@ -152,6 +152,18 @@ export async function pollForNewMessages(
   };
 }
 
+/** Delete signups attributed to auto-forwarding addresses (Gmail +caf_= pattern). */
+async function cleanupForwardingSignups(db: D1): Promise<number> {
+  const result = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%+caf_%=%'")
+    .run();
+  const deleted = result?.changes ?? 0;
+  if (deleted > 0) {
+    logger.info({ event: "cleanup_forwarding", deleted }, "deleted forwarding address signups");
+  }
+  return deleted;
+}
+
 /** Re-process the last N messages regardless of cursor. Used for backfill after parser fixes. */
 export async function backfillRecentMessages(
   db: D1,
@@ -159,6 +171,9 @@ export async function backfillRecentMessages(
   openrouterKey?: string,
   limit = 100,
 ): Promise<PollResult> {
+  // Clean up any existing signups from auto-forwarding addresses before re-processing
+  await cleanupForwardingSignups(db);
+
   const messages = await fetchRecentMessages(apiKey, GROUP_ID, limit);
   // Process oldest-first
   const sorted = messages.sort((a, b) => a.msg_num - b.msg_num);
