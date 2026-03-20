@@ -113,7 +113,21 @@ export function resolveName(name: string): string {
 }
 
 export function resolveSender(sender: string): string {
-  return resolveName(sender);
+  // Decode HTML entities that may appear in Groups.io API name fields
+  let clean = sender
+    .replace(/&nbsp;/g, " ").replace(/\u00a0/g, " ")
+    .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+    .replace(/&#39;/g, "'").replace(/&quot;/g, '"')
+    .trim();
+
+  // Strip Groups.io forwarding metadata: "...on behalf of Name via groups.io..."
+  const forwarded = extractNameFromForwardingMetadata(clean);
+  if (forwarded) return resolveName(forwarded);
+
+  // Auto-forward addresses should never become sender names
+  if (isAutoForwardAddress(clean)) return "";
+
+  return resolveName(clean);
 }
 
 function titleCase(s: string): string {
@@ -153,9 +167,24 @@ function isStopWord(word: string): boolean {
 
 // ── Sender / body (single email) ────────────────────────────────────────────
 
+/**
+ * Extract the real sender name from Groups.io "on behalf of" forwarding metadata.
+ * Pattern: "...@groups.io <...@groups.io> on behalf of Aaron Dutton via groups.io <adutton=..."
+ * Returns the extracted name or null if not a forwarding metadata string.
+ */
+export function extractNameFromForwardingMetadata(text: string): string | null {
+  const m = text.match(/on behalf of\s+(.+?)\s+via\s+groups\.io/i);
+  if (m) return m[1].trim();
+  return null;
+}
+
 export function extractSenderName(from: string): string {
   // Auto-forward addresses should never become sender names
   if (isAutoForwardAddress(from)) return "";
+
+  // Groups.io forwarding metadata: extract real name from "on behalf of Name via groups.io"
+  const forwarded = extractNameFromForwardingMetadata(from);
+  if (forwarded) return forwarded;
 
   const quoted = from.match(/^"([^"]+)"\s*<[^>]+>$/);
   if (quoted) return quoted[1].trim();
@@ -164,6 +193,16 @@ export function extractSenderName(from: string): string {
   const i = from.indexOf("@");
   if (i > 0) return from.slice(0, i).trim();
   return from.trim();
+}
+
+/** Strip common mobile email signatures from text. */
+export function stripEmailSignatures(text: string): string {
+  return text
+    .replace(/\s*Get Outlook for (?:Android|iOS)\s*<[^>]*>/gi, "")
+    .replace(/\s*Get Outlook for (?:Android|iOS)\s*/gi, "")
+    .replace(/\s*Sent from my (?:iPhone|iPad|Galaxy|Pixel|Android)\s*/gi, "")
+    .replace(/\s*Sent from (?:Yahoo Mail|Mail) (?:for|on) \w+\s*/gi, "")
+    .trim();
 }
 
 export function stripQuotedText(body: string): string {
@@ -179,12 +218,14 @@ export function stripQuotedText(body: string): string {
   }
 
   // Second pass: catch multi-line "On <date> ... wrote:" (Gmail wraps long sender names)
-  const joined = kept.join("\n");
+  let joined = kept.join("\n");
   const multiLineQuote = joined.search(/^On\s+(?:Mon|Tue|Wed|Thu|Fri|Sat|Sun)\b.+\d{4}/m);
   if (multiLineQuote !== -1) {
-    return joined.slice(0, multiLineQuote).trimEnd();
+    joined = joined.slice(0, multiLineQuote).trimEnd();
   }
-  return joined;
+
+  // Strip mobile email signatures
+  return stripEmailSignatures(joined);
 }
 
 // ── Signup line parsing ─────────────────────────────────────────────────────
@@ -260,6 +301,16 @@ export function parseSignupsFromMessage(
       const name = resolveN(possessiveIn[1]);
       if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
         results.push({ name, status: possessiveIn[2] as SignupStatus });
+        continue;
+      }
+    }
+
+    // "Name says he/she will play" — someone relaying another player's signup
+    const saysPlay = lower.match(/^([a-z][a-z'\-]{1,15})\s+says?\s+(?:he|she|they)\s+will\s+play\b/);
+    if (saysPlay) {
+      const name = resolveN(saysPlay[1]);
+      if (name.length >= 2 && !isStopWord(name.toLowerCase())) {
+        results.push({ name, status: "in" });
         continue;
       }
     }
@@ -376,8 +427,8 @@ export function extractGameDate(subject: string, referenceDate?: string): string
       if (targetDow >= 0) {
         const refDay = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
         const refDow = refDay.getDay();
-        let daysAhead = (targetDow - refDow + 7) % 7;
-        if (daysAhead === 0) daysAhead = 7; // same day = next week
+        const daysAhead = (targetDow - refDow + 7) % 7;
+        // daysAhead=0 means same day — the post is about today's game, not next week
         const next = new Date(refDay);
         next.setDate(next.getDate() + daysAhead);
         result = formatDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
