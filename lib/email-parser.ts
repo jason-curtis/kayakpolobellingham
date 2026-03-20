@@ -427,8 +427,11 @@ export function extractGameDate(subject: string, referenceDate?: string): string
       if (targetDow >= 0) {
         const refDay = new Date(refDate.getFullYear(), refDate.getMonth(), refDate.getDate());
         const refDow = refDay.getDay();
-        const daysAhead = (targetDow - refDow + 7) % 7;
-        // daysAhead=0 means same day — the post is about today's game, not next week
+        let daysAhead = (targetDow - refDow + 7) % 7;
+        // daysAhead=0 means same day of the week as the reference date.
+        // "Game on" subjects are about today's game; other subjects (e.g. "Season Opener")
+        // posted on the same day of week typically mean next week's game.
+        if (daysAhead === 0 && !/game\s*on/i.test(t)) daysAhead = 7;
         const next = new Date(refDay);
         next.setDate(next.getDate() + daysAhead);
         result = formatDate(next.getFullYear(), next.getMonth() + 1, next.getDate());
