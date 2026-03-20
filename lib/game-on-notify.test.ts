@@ -111,105 +111,19 @@ describe("checkAndNotify", () => {
     };
   });
 
-  it("returns game_not_found when game doesn't exist", async () => {
-    mockDb.first.mockResolvedValue(null);
-
-    const result = await checkAndNotify(mockDb, "game-xxx", sendEmail);
-    expect(result).toEqual({ sent: false, reason: "game_not_found" });
+  // Auto email notifications are currently disabled (hardcoded early return).
+  // When re-enabled, replace this test with the individual behavior tests below.
+  it("returns auto_email_disabled while notifications are turned off", async () => {
+    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
+    expect(result).toEqual({ sent: false, reason: "auto_email_disabled" });
     expect(sendEmail).not.toHaveBeenCalled();
   });
 
-  it("returns already_notified when game_on_notified is 1", async () => {
-    mockDb.first
-      .mockResolvedValueOnce({ id: "game-123", date: "2026-03-08", time: "09:00", game_on_notified: 1 });
-
-    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
-    expect(result).toEqual({ sent: false, reason: "already_notified" });
-    expect(sendEmail).not.toHaveBeenCalled();
-  });
-
-  it("returns below_threshold when fewer than 6 'in' signups", async () => {
-    mockDb.first
-      .mockResolvedValueOnce({ id: "game-123", date: "2026-03-08", time: "09:00", game_on_notified: 0 })
-      .mockResolvedValueOnce({ count: 5 });
-
-    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
-    expect(result).toEqual({ sent: false, reason: "below_threshold" });
-    expect(sendEmail).not.toHaveBeenCalled();
-  });
-
-  it("sends notification when threshold reached", async () => {
-    mockDb.first
-      .mockResolvedValueOnce({ id: "game-123", date: "2026-03-08", time: "09:00", game_on_notified: 0 })
-      .mockResolvedValueOnce({ count: 6 });
-    mockDb.all.mockResolvedValueOnce({
-      results: [
-        { player_name: "Jason", status: "in" },
-        { player_name: "Gary", status: "in" },
-        { player_name: "Dorothy", status: "in" },
-        { player_name: "Dave", status: "in" },
-        { player_name: "Paul", status: "in" },
-        { player_name: "Steve", status: "in" },
-        { player_name: "Bob", status: "out" },
-      ],
-    });
-
-    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
-    expect(result).toEqual({ sent: true });
-
-    // Verify email was sent
-    expect(sendEmail).toHaveBeenCalledOnce();
-    const [to, subject, body] = (sendEmail as any).mock.calls[0];
-    expect(to).toBe("kayakpolobellingham@groups.io");
-    expect(subject).toBe("Sunday 8/3 game on!");
-    expect(body).toContain("Game on!");
-    expect(body).toContain("Jason");
-    expect(body).toContain("Steve");
-    expect(body).toContain("Bob");
-
-    // Verify game was marked as notified
-    expect(mockDb.prepare).toHaveBeenCalledWith(
-      "UPDATE games SET game_on_notified = 1, updated_at = ? WHERE id = ?"
-    );
-  });
-
-  it("does not mark as notified when send fails", async () => {
-    mockDb.first
-      .mockResolvedValueOnce({ id: "game-123", date: "2026-03-08", time: "09:00", game_on_notified: 0 })
-      .mockResolvedValueOnce({ count: 6 });
-    mockDb.all.mockResolvedValueOnce({
-      results: [
-        { player_name: "Jason", status: "in" },
-        { player_name: "Gary", status: "in" },
-        { player_name: "Dorothy", status: "in" },
-        { player_name: "Dave", status: "in" },
-        { player_name: "Paul", status: "in" },
-        { player_name: "Steve", status: "in" },
-      ],
-    });
-
-    (sendEmail as any).mockRejectedValueOnce(new Error("network error"));
-
-    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
-    expect(result).toEqual({ sent: false, reason: "send_failed" });
-
-    // Should NOT have called update to mark as notified
-    const updateCalls = mockDb.prepare.mock.calls.filter(
-      (c: any[]) => typeof c[0] === "string" && c[0].includes("UPDATE games SET game_on_notified")
-    );
-    expect(updateCalls).toHaveLength(0);
-  });
-
-  it("sends with more than 6 signups (7+)", async () => {
-    mockDb.first
-      .mockResolvedValueOnce({ id: "game-123", date: "2026-03-08", time: "09:00", game_on_notified: 0 })
-      .mockResolvedValueOnce({ count: 8 });
-    mockDb.all.mockResolvedValueOnce({
-      results: Array.from({ length: 8 }, (_, i) => ({ player_name: `Player${i}`, status: "in" })),
-    });
-
-    const result = await checkAndNotify(mockDb, "game-123", sendEmail);
-    expect(result).toEqual({ sent: true });
-    expect(sendEmail).toHaveBeenCalledOnce();
-  });
+  // TODO: Re-enable these tests when auto email notifications are turned back on
+  // it("returns game_not_found when game doesn't exist", ...)
+  // it("returns already_notified when game_on_notified is 1", ...)
+  // it("returns below_threshold when fewer than 6 'in' signups", ...)
+  // it("sends notification when threshold reached", ...)
+  // it("does not mark as notified when send fails", ...)
+  // it("sends with more than 6 signups (7+)", ...)
 });
