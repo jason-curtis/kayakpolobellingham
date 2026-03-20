@@ -139,9 +139,12 @@ export async function checkAndNotify(
   gameId: string,
   sendEmail: SendEmailFn,
 ): Promise<{ sent: boolean; reason?: string }> {
-  // this functionality is disabled for now! turn back on when we're confident we want it
+  // Auto email notifications are disabled for now.
+  // To re-enable: remove this return and uncomment the code below.
   return { sent: false, reason: "auto_email_disabled" };
-  
+
+  /* --- disabled: auto email notification logic ---
+
   // Get game info
   const game = await db
     .prepare("SELECT id, date, time, game_on_notified FROM games WHERE id = ?")
@@ -210,4 +213,6 @@ export async function checkAndNotify(
   );
 
   return { sent: true };
+
+  --- end disabled --- */
 }
