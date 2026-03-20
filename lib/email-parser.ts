@@ -52,6 +52,18 @@ export interface SignupParseOptions {
   resolveSender?: (sender: string) => string;
 }
 
+// ── Auto-forward address detection ──────────────────────────────────────────
+// Gmail auto-forwarding rewrites the envelope From to include +caf_= in the
+// local part. These addresses must never be treated as player names.
+
+/**
+ * Detect Gmail auto-forwarding addresses (envelope From rewriting).
+ * Pattern: `user+caf_=destination=domain@gmail.com`
+ */
+export function isAutoForwardAddress(emailOrName: string): boolean {
+  return /\+caf_=/.test(emailOrName);
+}
+
 // ── Name aliasing ────────────────────────────────────────────────────────────
 // All keys are lowercase. resolveName() lowercases input before lookup.
 // Covers nicknames, full names, Groups.io usernames, and joke aliases.
@@ -142,6 +154,9 @@ function isStopWord(word: string): boolean {
 // ── Sender / body (single email) ────────────────────────────────────────────
 
 export function extractSenderName(from: string): string {
+  // Auto-forward addresses should never become sender names
+  if (isAutoForwardAddress(from)) return "";
+
   const quoted = from.match(/^"([^"]+)"\s*<[^>]+>$/);
   if (quoted) return quoted[1].trim();
   const unquoted = from.match(/^([^<]+)<[^>]+>$/);
