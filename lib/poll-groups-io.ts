@@ -152,12 +152,21 @@ export async function pollForNewMessages(
   };
 }
 
-/** Delete signups attributed to auto-forwarding addresses (Gmail +caf_= pattern). */
+/** Delete signups attributed to auto-forwarding addresses or forwarding metadata. */
 async function cleanupForwardingSignups(db: D1): Promise<number> {
-  const result = await db
+  // Clean up Gmail auto-forward addresses (+caf_= pattern)
+  const r1 = await db
     .prepare("DELETE FROM signups WHERE player_name LIKE '%+caf_%=%'")
     .run();
-  const deleted = result?.changes ?? 0;
+  // Clean up Groups.io forwarding metadata ("on behalf of" in player names)
+  const r2 = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%on behalf of%via groups.io%'")
+    .run();
+  // Clean up HTML-entity-laden forwarding metadata (&nbsp; prefixed groups.io addresses)
+  const r3 = await db
+    .prepare("DELETE FROM signups WHERE player_name LIKE '%groups.io%on behalf of%'")
+    .run();
+  const deleted = (r1?.changes ?? 0) + (r2?.changes ?? 0) + (r3?.changes ?? 0);
   if (deleted > 0) {
     logger.info({ event: "cleanup_forwarding", deleted }, "deleted forwarding address signups");
   }
