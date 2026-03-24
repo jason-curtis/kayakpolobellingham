@@ -104,7 +104,7 @@ export const NAME_ALIASES: Record<string, string> = {
 };
 
 export function resolveName(name: string): string {
-  const trimmed = name.trim().replace(/'s$/i, "");
+  const trimmed = name.trim().replace(/\s+via\s+groups\.io$/i, "").replace(/'s$/i, "");
   if (!trimmed) return "";
   const lower = trimmed.toLowerCase();
   if (NAME_ALIASES[lower]) return NAME_ALIASES[lower];
@@ -178,6 +178,11 @@ export function extractNameFromForwardingMetadata(text: string): string | null {
   return null;
 }
 
+/** Strip "Via Groups.io" suffix that Groups.io appends to forwarded email From headers. */
+function stripViaGroupsIo(name: string): string {
+  return name.replace(/\s+via\s+groups\.io$/i, "");
+}
+
 export function extractSenderName(from: string): string {
   // Auto-forward addresses should never become sender names
   if (isAutoForwardAddress(from)) return "";
@@ -187,12 +192,12 @@ export function extractSenderName(from: string): string {
   if (forwarded) return forwarded;
 
   const quoted = from.match(/^"([^"]+)"\s*<[^>]+>$/);
-  if (quoted) return quoted[1].trim();
+  if (quoted) return stripViaGroupsIo(quoted[1].trim());
   const unquoted = from.match(/^([^<]+)<[^>]+>$/);
-  if (unquoted) return unquoted[1].trim();
+  if (unquoted) return stripViaGroupsIo(unquoted[1].trim());
   const i = from.indexOf("@");
   if (i > 0) return from.slice(0, i).trim();
-  return from.trim();
+  return stripViaGroupsIo(from.trim());
 }
 
 /** Strip common mobile email signatures from text. */

@@ -61,6 +61,11 @@ describe("resolveName", () => {
     expect(resolveName("bob smith")).toBe("Bob Smith");
     expect(resolveName("JANE DOE")).toBe("Jane Doe");
   });
+  it("strips 'Via Groups.io' before resolving", () => {
+    expect(resolveName("Dorothy Burke Via Groups.io")).toBe("Dorothy");
+    expect(resolveName("Paul Burkhouse Via Groups.io")).toBe("Paul");
+    expect(resolveName("Kevin Murphy via groups.io")).toBe("Kevin");
+  });
 });
 
 describe("resolveSender", () => {
@@ -76,6 +81,15 @@ describe("extractSenderName", () => {
     expect(extractSenderName('"Gary Smith" <gary@example.com>')).toBe("Gary Smith");
     expect(extractSenderName("Gary Smith <gary@example.com>")).toBe("Gary Smith");
     expect(extractSenderName("gary@example.com")).toBe("gary");
+  });
+  it("strips 'Via Groups.io' from quoted From headers", () => {
+    expect(extractSenderName('"Dorothy Burke Via Groups.io" <dorothy_burke=comcast.net@groups.io>')).toBe("Dorothy Burke");
+  });
+  it("strips 'Via Groups.io' from unquoted From headers", () => {
+    expect(extractSenderName("Paul Burkhouse Via Groups.io <paul=example.com@groups.io>")).toBe("Paul Burkhouse");
+  });
+  it("strips 'via groups.io' case-insensitively", () => {
+    expect(extractSenderName('"Someone via GROUPS.IO" <x@groups.io>')).toBe("Someone");
   });
 });
 
