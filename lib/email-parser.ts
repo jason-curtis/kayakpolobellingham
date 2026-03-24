@@ -85,7 +85,7 @@ export const NAME_ALIASES: Record<string, string> = {
   mike: "Mike", "mike mills": "Mike",
   melissa: "Melissa", "melissa bertocchini": "Melissa", mel: "Melissa", mellissa: "Melissa",
   sarah: "Sarah", "sarah hare": "Sarah",
-  kevin: "Kevin", kev: "Kevin", "kevin murphy": "Kevin",
+  kevin: "Kevin", kev: "Kevin", k: "Kevin", "kevin murphy": "Kevin",
   ryan: "Ryan", "ryan vasak": "Ryan",
   jer: "Jerimiah", jerimiah: "Jerimiah", "jerimiah welch": "Jerimiah", jerimiahwelch: "Jerimiah",
   matt: "Matt", "matt goodwin": "Matt",

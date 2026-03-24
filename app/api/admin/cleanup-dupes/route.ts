@@ -3,7 +3,7 @@ import { getCloudflareContext } from "@opennextjs/cloudflare";
 import { requireAdmin } from "@/lib/auth";
 import { resolveName } from "@/lib/email-parser";
 
-/** Find and merge duplicate signups caused by "Via Groups.io" name suffixes. */
+/** Find signups whose player_name resolves to a different canonical name and merge/rename them. */
 export async function POST(request: NextRequest) {
   const authError = requireAdmin(request);
   if (authError) return authError;
@@ -12,42 +12,42 @@ export async function POST(request: NextRequest) {
     const { env } = await getCloudflareContext();
     const db = (env as { D1_DB: any }).D1_DB;
 
-    // Find all signups with "via groups.io" in the player_name
-    const { results: dupes } = await db
-      .prepare("SELECT id, game_id, player_name, status, source_url, source_at FROM signups WHERE LOWER(player_name) LIKE '%via groups.io%'")
+    const { results: allSignups } = await db
+      .prepare("SELECT id, game_id, player_name, status, source_url, source_at FROM signups")
       .all();
 
     let merged = 0;
     let renamed = 0;
     const details: string[] = [];
 
-    for (const dupe of dupes as any[]) {
-      const cleanName = resolveName(dupe.player_name);
+    for (const signup of allSignups as any[]) {
+      const cleanName = resolveName(signup.player_name);
+      if (cleanName === signup.player_name) continue; // already canonical
 
       // Check if there's already a signup with the clean name for this game
       const existing = await db
         .prepare("SELECT id, source_url FROM signups WHERE game_id = ? AND player_name = ?")
-        .bind(dupe.game_id, cleanName)
+        .bind(signup.game_id, cleanName)
         .first();
 
       if (existing) {
-        // Clean-name signup exists — copy source_url to it if it's missing, then delete the dupe
-        if (!existing.source_url && dupe.source_url) {
+        // Canonical-name signup exists — copy source_url to it if missing, then delete the dupe
+        if (!existing.source_url && signup.source_url) {
           await db
             .prepare("UPDATE signups SET source_url = ? WHERE id = ?")
-            .bind(dupe.source_url, existing.id)
+            .bind(signup.source_url, existing.id)
             .run();
         }
-        await db.prepare("DELETE FROM signups WHERE id = ?").bind(dupe.id).run();
-        details.push(`merged "${dupe.player_name}" → "${cleanName}" (game ${dupe.game_id})`);
+        await db.prepare("DELETE FROM signups WHERE id = ?").bind(signup.id).run();
+        details.push(`merged "${signup.player_name}" → "${cleanName}" (game ${signup.game_id})`);
         merged++;
       } else {
-        // No clean-name signup — just rename the dupe
+        // No canonical-name signup — rename the dupe
         await db
           .prepare("UPDATE signups SET player_name = ? WHERE id = ?")
-          .bind(cleanName, dupe.id)
+          .bind(cleanName, signup.id)
           .run();
-        details.push(`renamed "${dupe.player_name}" → "${cleanName}" (game ${dupe.game_id})`);
+        details.push(`renamed "${signup.player_name}" → "${cleanName}" (game ${signup.game_id})`);
         renamed++;
       }
     }
