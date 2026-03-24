@@ -351,14 +351,8 @@ describe("2026-03-18 game — real thread parsing", () => {
       "Mike Mills",
       withAliases,
     );
-    // "I'll" doesn't match "I'll play" or "I'll be there" exactly, and "might" triggers maybe.
-    // This message is ambiguous — the parser may classify differently.
-    // The intent is clearly "in" but the parser may need LLM fallback for this.
-    // Accept either in or maybe as reasonable regex-only output.
-    if (signups.length > 0) {
-      expect(signups[0].name).toBe("Mike");
-      expect(["in", "maybe"]).toContain(signups[0].status);
-    }
+    // "might be a bit late" is timing uncertainty → classified as "in"
+    expect(signups).toEqual([{ name: "Mike", status: "in" }]);
   });
 });
 

@@ -8,6 +8,7 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
 import { parseGameMessage, extractSenderName } from "./lib/email-parser";
 import { applyInboundEmail } from "./lib/apply-inbound-email";
+import { extractMessageNum, messageUrl } from "./lib/groups-io-api";
 import { pollForNewMessages, backfillRecentMessages } from "./lib/poll-groups-io";
 import { checkAndNotify } from "./lib/game-on-notify";
 import { createGroupsIoSender } from "./lib/send-email";
@@ -86,7 +87,9 @@ export default class KayakPoloWorker extends WorkerEntrypoint<Env> {
       }
 
       const db = this.env.D1_DB;
-      const { gameId, signupsApplied } = await applyInboundEmail(db, result);
+      const msgNum = extractMessageNum(payload.textBody ?? "");
+      const sourceUrl = msgNum ? messageUrl(msgNum) : undefined;
+      const { gameId, signupsApplied } = await applyInboundEmail(db, result, sourceUrl);
       logger.info(
         { event: "email_applied", gameId: gameId ?? undefined, signupsApplied },
         "parsed signups applied to D1"

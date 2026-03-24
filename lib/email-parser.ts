@@ -266,6 +266,12 @@ export function parseSignupsFromMessage(
       if (resolvedSender) results.push({ name: resolvedSender, status: "out" });
       continue;
     }
+    // ── Timing uncertainty / soft commitment = still "in" (before generic "might") ──
+    if (/\bmight\s+be\s+(a\s+bit\s+)?late\b/.test(lower) || /\brunning\s+late\b/.test(lower) ||
+        /\b(?:will|i'?ll)\s+try\s+to\s+(?:make|be|get)\b/.test(lower) || /\btry\s+for\s+\d/.test(lower)) {
+      if (resolvedSender) results.push({ name: resolvedSender, status: "in" });
+      continue;
+    }
     if (/\bi'?m\s+a\s+maybe\b/.test(lower) || /\bi\s+might\b/.test(lower) || /\btentative\b/.test(lower) || /\bunsure\b/.test(lower)) {
       if (resolvedSender) results.push({ name: resolvedSender, status: "maybe" });
       continue;

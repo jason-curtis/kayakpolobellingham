@@ -17,7 +17,7 @@ import {
   getGameTime,
   type Topic,
 } from "./email-parser";
-import { stripHtml, decodeSnippet } from "./groups-io-api";
+import { stripHtml, decodeSnippet, extractMessageNum } from "./groups-io-api";
 
 describe("stripHtml", () => {
   it("converts HTML body to plain text", () => {
@@ -44,6 +44,20 @@ describe("stripHtml", () => {
     expect(result).toContain("> Dorothy wrote:");
     expect(result).toContain("> I'm in");
     expect(result).toContain("> Gary too");
+  });
+});
+
+describe("extractMessageNum", () => {
+  it("extracts message number from Groups.io footer", () => {
+    const body = "Will try for 530\n\nYou receive all messages sent to this group.\nView/Reply Online (#13480) | Reply to Group";
+    expect(extractMessageNum(body)).toBe(13480);
+  });
+  it("returns null when no footer present", () => {
+    expect(extractMessageNum("I'm in")).toBeNull();
+  });
+  it("extracts from HTML-stripped footer", () => {
+    const body = "I'm in\n\n View/Reply Online (#13500)  |  Reply to Group";
+    expect(extractMessageNum(body)).toBe(13500);
   });
 });
 
@@ -139,6 +153,20 @@ describe("parseSignupsFromMessage", () => {
   it("uses titleCase when no resolvers (real-time path)", () => {
     const got = parseSignupsFromMessage("Dor in", "Bob");
     expect(got).toEqual([{ name: "Dor", status: "in" }]);
+  });
+  it("classifies timing uncertainty / soft commitment as 'in'", () => {
+    const withAliases = { resolveName, resolveSender };
+    // "might be late" = timing uncertainty
+    expect(parseSignupsFromMessage("might be late", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
+    expect(parseSignupsFromMessage("might be a bit late depending on work", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
+    // "running late"
+    expect(parseSignupsFromMessage("running late but coming", "Dorothy Burke", withAliases)).toEqual([{ name: "Dorothy", status: "in" }]);
+    // "will try for [time]"
+    expect(parseSignupsFromMessage("Will try for 530", "Paul Smith", withAliases)).toEqual([{ name: "Paul Smith", status: "in" }]);
+    // "I'll try to make/be/get"
+    expect(parseSignupsFromMessage("I'll try to make it", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
+    expect(parseSignupsFromMessage("I'll try to be there by 5:30", "Dorothy Burke", withAliases)).toEqual([{ name: "Dorothy", status: "in" }]);
+    expect(parseSignupsFromMessage("will try to get there", "Jason Curtis", withAliases)).toEqual([{ name: "Jason", status: "in" }]);
   });
   it("parses maybe status from body", () => {
     const withAliases = { resolveName, resolveSender };

@@ -128,6 +128,12 @@ export function messageUrl(msgNum: number): string {
   return `https://groups.io/g/kayakpolobellingham/message/${msgNum}`;
 }
 
+/** Extract Groups.io message number from email footer like "View/Reply Online (#13480)". */
+export function extractMessageNum(body: string): number | null {
+  const match = body.match(/View\/Reply Online \(#(\d+)\)/);
+  return match ? parseInt(match[1], 10) : null;
+}
+
 /** Decode common HTML entities in snippet text. */
 export function decodeSnippet(snippet: string): string {
   return snippet
